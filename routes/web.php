@@ -4,6 +4,7 @@ use App\Http\Controllers\ScanVerificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
+    return view('welcome');
     return redirect('https://sppd.oganilirkab.go.id');
 });
 
