@@ -12,7 +12,7 @@ class KlasifikasiSeeder extends Seeder
      */
     public function run(): void
     {
-        $sqlPath = base_path('../sql_klasifikasi/KLASIFIKASI SURAT (DATABASE).sql');
+        $sqlPath = base_path('klasifikasi_surat.sql');
 
         if (!file_exists($sqlPath)) {
             $this->command->warn('SQL file not found: ' . $sqlPath);
