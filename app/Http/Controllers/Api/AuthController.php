@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Employee;
 use App\Models\Instance;
 use App\Models\ActivityLog;
+use App\Models\LoginAttempt;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -26,7 +27,51 @@ class AuthController extends Controller
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
+            'captcha_answer' => 'nullable|string',
+            'captcha_token' => 'nullable|string',
         ]);
+
+        $ip = $request->ip();
+        $attempt = LoginAttempt::getAttempt($request->username, $ip);
+
+        // Check if blocked
+        if ($attempt->isCurrentlyBlocked()) {
+            $remaining = now()->diffInSeconds($attempt->blocked_until, false);
+            $minutes = (int) ceil($remaining / 60);
+
+            return response()->json([
+                'success' => false,
+                'message' => "Akun diblokir karena terlalu banyak percobaan gagal. Coba lagi dalam {$minutes} menit.",
+                'blocked' => true,
+                'blocked_until' => $attempt->blocked_until->toISOString(),
+                'retry_after' => $remaining,
+            ], 429);
+        }
+
+        // Verify captcha if required
+        if ($attempt->requiresCaptcha()) {
+            if (!$request->captcha_answer || !$request->captcha_token) {
+                $captcha = LoginAttempt::generateCaptcha();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Captcha diperlukan. Silakan jawab pertanyaan berikut.',
+                    'requires_captcha' => true,
+                    'captcha' => $captcha,
+                    'attempts' => $attempt->attempts,
+                ], 422);
+            }
+
+            if (!LoginAttempt::verifyCaptcha($request->captcha_answer, $request->captcha_token)) {
+                $captcha = LoginAttempt::generateCaptcha();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Jawaban captcha salah. Silakan coba lagi.',
+                    'requires_captcha' => true,
+                    'captcha' => $captcha,
+                    'attempts' => $attempt->attempts,
+                ], 422);
+            }
+        }
 
         try {
             // Hit Semesta API for authentication
@@ -43,20 +88,52 @@ class AuthController extends Controller
                 ]);
 
             if (!$response->successful()) {
-                return response()->json([
+                $attempt = $attempt->recordFailedAttempt();
+                $responseData = [
                     'success' => false,
                     'message' => 'Autentikasi gagal. Username atau password salah.',
-                ], 401);
+                    'attempts' => $attempt->attempts,
+                ];
+
+                if ($attempt->isCurrentlyBlocked()) {
+                    $responseData['blocked'] = true;
+                    $responseData['blocked_until'] = $attempt->blocked_until->toISOString();
+                    $responseData['message'] = 'Akun diblokir karena terlalu banyak percobaan gagal. Coba lagi dalam ' . LoginAttempt::BLOCK_DURATION_MINUTES . ' menit.';
+                    return response()->json($responseData, 429);
+                }
+
+                if ($attempt->requiresCaptcha()) {
+                    $responseData['requires_captcha'] = true;
+                    $responseData['captcha'] = LoginAttempt::generateCaptcha();
+                }
+
+                return response()->json($responseData, 401);
             }
 
             $semestaData = $response->json();
 
             // Semesta API returns: {error_code, status: "success", message, atribut_user: {...}}
             if (!isset($semestaData['status']) || $semestaData['status'] !== 'success') {
-                return response()->json([
+                $attempt = $attempt->recordFailedAttempt();
+                $responseData = [
                     'success' => false,
                     'message' => $semestaData['message'] ?? 'Autentikasi gagal.',
-                ], 401);
+                    'attempts' => $attempt->attempts,
+                ];
+
+                if ($attempt->isCurrentlyBlocked()) {
+                    $responseData['blocked'] = true;
+                    $responseData['blocked_until'] = $attempt->blocked_until->toISOString();
+                    $responseData['message'] = 'Akun diblokir karena terlalu banyak percobaan gagal. Coba lagi dalam ' . LoginAttempt::BLOCK_DURATION_MINUTES . ' menit.';
+                    return response()->json($responseData, 429);
+                }
+
+                if ($attempt->requiresCaptcha()) {
+                    $responseData['requires_captcha'] = true;
+                    $responseData['captcha'] = LoginAttempt::generateCaptcha();
+                }
+
+                return response()->json($responseData, 401);
             }
 
             $userData = $semestaData['atribut_user'] ?? null;
@@ -148,6 +225,9 @@ class AuthController extends Controller
             // Revoke previous tokens
             $user->tokens()->delete();
 
+            // Reset login attempts on successful login
+            $attempt->resetAttempts();
+
             // Generate new token
             $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -216,6 +296,130 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'data' => $user,
+        ]);
+    }
+
+    /**
+     * Check login attempt status for a username (public)
+     * Returns whether captcha is required and/or user is blocked
+     */
+    public function loginStatus(Request $request): JsonResponse
+    {
+        $request->validate([
+            'username' => 'required|string',
+        ]);
+
+        $ip = $request->ip();
+        $attempt = LoginAttempt::getAttempt($request->username, $ip);
+
+        $data = [
+            'attempts' => $attempt->attempts,
+            'requires_captcha' => $attempt->requiresCaptcha(),
+            'blocked' => $attempt->isCurrentlyBlocked(),
+        ];
+
+        if ($data['blocked']) {
+            $data['blocked_until'] = $attempt->blocked_until->toISOString();
+            $remaining = now()->diffInSeconds($attempt->blocked_until, false);
+            $data['retry_after'] = max(0, $remaining);
+        }
+
+        if ($data['requires_captcha']) {
+            $data['captcha'] = LoginAttempt::generateCaptcha();
+        }
+
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * List all blocked login attempts (Super Admin only)
+     */
+    public function blockedUsers(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->loadMissing('role');
+
+        if (($user->role->slug ?? '') !== 'super-admin') {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $query = LoginAttempt::query()
+            ->orderByDesc('last_attempt_at');
+
+        if ($request->filled('status')) {
+            if ($request->status === 'blocked') {
+                $query->where('is_blocked', true)->where('blocked_until', '>', now());
+            } elseif ($request->status === 'warning') {
+                $query->where('attempts', '>=', LoginAttempt::CAPTCHA_THRESHOLD)
+                      ->where(function ($q) {
+                          $q->where('is_blocked', false)
+                            ->orWhere('blocked_until', '<=', now());
+                      });
+            }
+        } else {
+            // Default: show records with at least 1 attempt
+            $query->where('attempts', '>', 0);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('username', 'ilike', "%{$search}%")
+                  ->orWhere('ip_address', 'ilike', "%{$search}%");
+            });
+        }
+
+        $attempts = $query->paginate(20);
+
+        return response()->json([
+            'success' => true,
+            'data' => $attempts,
+        ]);
+    }
+
+    /**
+     * Unblock a specific login attempt record (Super Admin only)
+     */
+    public function unblockUser(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $user->loadMissing('role');
+
+        if (($user->role->slug ?? '') !== 'super-admin') {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $attempt = LoginAttempt::findOrFail($id);
+        $attempt->unblock();
+
+        return response()->json([
+            'success' => true,
+            'message' => "User {$attempt->username} (IP: {$attempt->ip_address}) berhasil di-unblock.",
+        ]);
+    }
+
+    /**
+     * Unblock all blocked records (Super Admin only)
+     */
+    public function unblockAll(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $user->loadMissing('role');
+
+        if (($user->role->slug ?? '') !== 'super-admin') {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $count = LoginAttempt::where('is_blocked', true)->count();
+        LoginAttempt::where('is_blocked', true)->update([
+            'attempts' => 0,
+            'is_blocked' => false,
+            'blocked_until' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$count} record berhasil di-unblock.",
         ]);
     }
 }

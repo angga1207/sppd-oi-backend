@@ -155,4 +155,5 @@ class SuratTugas extends Model
     {
         return $this->status === 'draft';
     }
+
 }

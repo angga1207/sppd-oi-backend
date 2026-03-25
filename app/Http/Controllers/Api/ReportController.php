@@ -476,8 +476,8 @@ class ReportController extends Controller
         return $query->select(
                 'instance_id',
                 DB::raw('COUNT(*) as total_st'),
-                DB::raw('SUM(CASE WHEN has_spd = 1 THEN 1 ELSE 0 END) as total_spd'),
-                DB::raw('SUM(CASE WHEN has_spd = 1 THEN biaya ELSE 0 END) as total_biaya')
+                DB::raw('SUM(CASE WHEN has_spd = true THEN 1 ELSE 0 END) as total_spd'),
+                DB::raw('SUM(CASE WHEN has_spd = true THEN biaya ELSE 0 END) as total_biaya')
             )
             ->groupBy('instance_id')
             ->orderByDesc('total_st')

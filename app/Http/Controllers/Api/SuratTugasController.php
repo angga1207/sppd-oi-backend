@@ -7,7 +7,6 @@ use App\Models\SuratTugas;
 use App\Models\SuratTugasPegawai;
 use App\Models\SuratPerjalananDinas;
 use App\Models\Employee;
-use App\Models\Instance;
 use App\Models\LogSurat;
 use App\Services\DocumentService;
 use App\Services\NotificationService;
@@ -274,6 +273,12 @@ class SuratTugasController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $user->loadMissing('role');
+
+        // Always use the user's own instance_id
+        $effectiveInstanceId = $user->instance_id;
+
         $request->validate([
             'klasifikasi_id' => 'nullable|exists:klasifikasi,id',
             'kategori_id' => 'nullable|exists:kategori_surat,id',
@@ -316,7 +321,7 @@ class SuratTugasController extends Controller
                 'string',
                 'max:255',
                 Rule::unique('surat_tugas', 'nomor_surat')
-                    ->where('instance_id', $request->user()->instance_id)
+                    ->where('instance_id', $effectiveInstanceId)
                     ->whereNull('deleted_at'),
             ],
             'pegawai' => 'required|array|min:1',
@@ -334,9 +339,7 @@ class SuratTugasController extends Controller
         ]);
 
         try {
-            $user = $request->user();
-
-            $suratTugas = DB::transaction(function () use ($request, $user) {
+            $suratTugas = DB::transaction(function () use ($request, $user, $effectiveInstanceId) {
                 // Create Surat Tugas
                 $st = SuratTugas::create([
                     'nomor_surat' => $request->nomor_surat,
@@ -355,7 +358,7 @@ class SuratTugasController extends Controller
                     'penandatangan_nip' => $request->penandatangan_nip,
                     'penandatangan_jabatan' => $request->penandatangan_jabatan,
                     'penandatangan_instance_id' => $request->penandatangan_instance_id,
-                    'instance_id' => $user->instance_id,
+                    'instance_id' => $effectiveInstanceId,
                     'jenis_perjalanan' => $request->jenis_perjalanan,
                     'tujuan_provinsi_id' => $request->tujuan_provinsi_id,
                     'tujuan_provinsi_nama' => $request->tujuan_provinsi_nama,
@@ -380,20 +383,7 @@ class SuratTugasController extends Controller
                     'created_by' => $user->id,
                 ]);
 
-                // Upsert pemberi perintah into employees table
-                if ($request->pemberi_perintah_nip) {
-                    $this->upsertEmployee([
-                        'nip' => $request->pemberi_perintah_nip,
-                        'nama_lengkap' => $request->pemberi_perintah_nama,
-                        'jabatan' => $request->pemberi_perintah_jabatan,
-                        'pangkat' => $request->pemberi_perintah_pangkat,
-                        'id_skpd' => $request->pemberi_perintah_instance_id,
-                        'golongan' => $request->pemberi_perintah_golongan,
-                        'jenis_pegawai' => $request->pemberi_perintah_jenis_pegawai ?? 'kepala',
-                    ], $user);
-                }
-
-                // Create pegawai entries + upsert to employees table
+                // Create pegawai entries
                 foreach ($request->pegawai as $p) {
                     $stp = SuratTugasPegawai::create([
                         'surat_tugas_id' => $st->id,
@@ -408,9 +398,6 @@ class SuratTugasController extends Controller
                         'nama_skpd' => $p['nama_skpd'] ?? null,
                         'id_jabatan' => $p['id_jabatan'] ?? null,
                     ]);
-
-                    // Upsert pegawai into employees table
-                    $this->upsertEmployee($p, $user);
 
                     // Auto-create SPD per pegawai if has_spd
                     if ($st->has_spd) {
@@ -552,19 +539,6 @@ class SuratTugasController extends Controller
                 // Check if nomor_surat changed — if yes, nomor_spd should be reset
                 $nomorSuratChanged = $request->has('nomor_surat') && $request->nomor_surat !== $oldNomorSurat;
 
-                // Upsert pemberi perintah into employees table
-                if ($request->pemberi_perintah_nip) {
-                    $this->upsertEmployee([
-                        'nip' => $request->pemberi_perintah_nip,
-                        'nama_lengkap' => $request->pemberi_perintah_nama,
-                        'jabatan' => $request->pemberi_perintah_jabatan,
-                        'id_skpd' => $request->pemberi_perintah_instance_id,
-                        'pangkat' => $request->pemberi_perintah_pangkat,
-                        'golongan' => $request->pemberi_perintah_golongan,
-                        'jenis_pegawai' => $request->pemberi_perintah_jenis_pegawai ?? 'kepala',
-                    ], $request->user());
-                }
-
                 // If pegawai list updated, sync
                 if ($request->has('pegawai')) {
                     // Preserve existing SPD nomor_spd mapped by pegawai NIP (unless nomor_surat changed)
@@ -596,9 +570,6 @@ class SuratTugasController extends Controller
                             'nama_skpd' => $p['nama_skpd'] ?? null,
                             'id_jabatan' => $p['id_jabatan'] ?? null,
                         ]);
-
-                        // Upsert pegawai into employees table
-                        $this->upsertEmployee($p, $request->user());
 
                         if ($suratTugas->has_spd) {
                             // Lookup kepala_skpd from Employee table
@@ -1427,48 +1398,4 @@ class SuratTugasController extends Controller
         return "SPD-{$sequence}/{$instanceCode}/{$year}";
     }
 
-    /**
-     * Upsert pegawai into employees table (by NIP)
-     */
-    private function upsertEmployee(array $p, $user): void
-    {
-        try {
-            // Bupati tidak memiliki OPD
-            $isBupati = ($p['nip'] ?? '') === '1000'
-                || ($p['jenis_pegawai'] ?? '') === 'bupati';
-
-            // Find instance_id from id_skpd (eoffice id)
-            $instanceId = null;
-            if (!$isBupati && !empty($p['id_skpd'])) {
-                $instance = Instance::where('id_eoffice', $p['id_skpd'])->first();
-                $instanceId = $instance?->id;
-            }
-            // Fallback to user's instance_id (tidak untuk Bupati)
-            if (!$isBupati && !$instanceId && $user) {
-                $instanceId = $user->instance_id;
-            }
-
-            Employee::updateOrCreate(
-                ['nip' => $p['nip']],
-                [
-                    'semesta_id' => $p['semesta_pegawai_id'] ?? 0,
-                    'nama_lengkap' => $p['nama_lengkap'],
-                    'jenis_pegawai' => $p['jenis_pegawai'] ?? 'staff',
-                    'instance_id' => $instanceId,
-                    'id_skpd' => $isBupati ? null : ($p['id_skpd']),
-                    'id_jabatan' => $p['id_jabatan'],
-                    'jabatan' => $p['jabatan'],
-                    'kepala_skpd' => $p['kepala_skpd'],
-                    'foto_pegawai' => $p['foto_pegawai'],
-                    'eselon' => $p['eselon'],
-                    'golongan' => $p['golongan'],
-                    'pangkat' => $p['pangkat'],
-                    'email' => $p['email'],
-                    'no_hp' => $p['no_hp'],
-                ]
-            );
-        } catch (\Exception $e) {
-            Log::warning('Failed to upsert employee NIP ' . ($p['nip'] ?? 'unknown') . ': ' . $e->getMessage());
-        }
-    }
 }

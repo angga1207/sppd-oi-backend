@@ -72,9 +72,10 @@ class DashboardController extends Controller
             // ─── 5. Top Pegawai paling sering ditugaskan ───
             $topPegawai = $this->getTopPegawai($year, $instanceId);
 
-            // ─── 6. Provinsi & Kabupaten Tujuan ───
+            // ─── 6. Provinsi & Kabupaten & Kecamatan Tujuan ───
             $topProvinsi = $this->getTopProvinsi($year, $instanceId);
             $topKabupaten = $this->getTopKabupaten($year, $instanceId);
+            $topKecamatan = $this->getTopKecamatan($year, $instanceId);
 
             // ─── 7. Berdasarkan Klasifikasi Surat ───
             $chartKlasifikasi = $this->getChartKlasifikasi($year, $instanceId);
@@ -108,6 +109,7 @@ class DashboardController extends Controller
                     'top_pegawai' => $topPegawai,
                     'top_provinsi' => $topProvinsi,
                     'top_kabupaten' => $topKabupaten,
+                    'top_kecamatan' => $topKecamatan,
                     'chart_klasifikasi' => $chartKlasifikasi,
                     'chart_alat_angkut' => $chartAlatAngkut,
                     'top_opd_perjalanan' => $topOpdPerjalanan,
@@ -281,12 +283,17 @@ class DashboardController extends Controller
 
     /**
      * Top Provinsi tujuan
+     * Untuk Sumatera Selatan: exclude perjalanan ke Ogan Ilir (dalam kota)
      */
     private function getTopProvinsi(int $year, ?int $instanceId): array
     {
         return $this->applyScope(SuratTugas::whereYear('created_at', $year)
             ->where('has_spd', true)
-            ->whereNotNull('tujuan_provinsi_nama'), $instanceId)
+            ->whereNotNull('tujuan_provinsi_nama')
+            ->where(function ($q) {
+                $q->where('tujuan_kabupaten_nama', 'NOT LIKE', '%OGAN ILIR%')
+                  ->orWhereNull('tujuan_kabupaten_nama');
+            }), $instanceId)
             ->select('tujuan_provinsi_id', 'tujuan_provinsi_nama', DB::raw('COUNT(*) as total'))
             ->groupBy('tujuan_provinsi_id', 'tujuan_provinsi_nama')
             ->orderByDesc('total')
@@ -297,16 +304,34 @@ class DashboardController extends Controller
 
     /**
      * Top Kabupaten tujuan
+     * Exclude Ogan Ilir karena termasuk Perjalanan Dinas Dalam Kota
      */
     private function getTopKabupaten(int $year, ?int $instanceId): array
     {
         return $this->applyScope(SuratTugas::whereYear('created_at', $year)
             ->where('has_spd', true)
-            ->whereNotNull('tujuan_kabupaten_nama'), $instanceId)
+            ->whereNotNull('tujuan_kabupaten_nama')
+            ->where('tujuan_kabupaten_nama', 'NOT LIKE', '%OGAN ILIR%'), $instanceId)
             ->select('tujuan_kabupaten_id', 'tujuan_kabupaten_nama', DB::raw('COUNT(*) as total'))
             ->groupBy('tujuan_kabupaten_id', 'tujuan_kabupaten_nama')
             ->orderByDesc('total')
             ->limit(10)
+            ->get()
+            ->toArray();
+    }
+
+    /**
+     * Top Kecamatan tujuan (Perjalanan Dinas Dalam Kota / Ogan Ilir)
+     */
+    private function getTopKecamatan(int $year, ?int $instanceId): array
+    {
+        return $this->applyScope(SuratTugas::whereYear('created_at', $year)
+            ->where('has_spd', true)
+            ->whereNotNull('tujuan_kecamatan_nama'), $instanceId)
+            ->select('tujuan_kecamatan_id', 'tujuan_kecamatan_nama', DB::raw('COUNT(*) as total'))
+            ->groupBy('tujuan_kecamatan_id', 'tujuan_kecamatan_nama')
+            ->orderByDesc('total')
+            ->limit(5)
             ->get()
             ->toArray();
     }

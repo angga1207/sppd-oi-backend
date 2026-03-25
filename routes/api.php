@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\PegawaiController;
 use App\Http\Controllers\Api\KlasifikasiController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ActivityLogController;
+use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\KategoriSuratController;
 use App\Http\Controllers\Api\SiCaramController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Api\GlobalSearchController;
 
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/login-status', [AuthController::class, 'loginStatus']);
 
 // Region data (public, cached)
 Route::prefix('region')->group(function () {
@@ -37,6 +39,13 @@ Route::prefix('region')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+
+    // Login Attempts Management (Super Admin)
+    Route::prefix('login-attempts')->group(function () {
+        Route::get('/', [AuthController::class, 'blockedUsers']);
+        Route::post('/{id}/unblock', [AuthController::class, 'unblockUser']);
+        Route::post('/unblock-all', [AuthController::class, 'unblockAll']);
+    });
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index']);
@@ -81,6 +90,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/employees/bupati', [PegawaiController::class, 'bupati']);
     Route::get('/instances', [PegawaiController::class, 'instances']);
 
+    // Employee Management (Super Admin only)
+    Route::prefix('employees')->group(function () {
+        Route::get('/', [EmployeeController::class, 'index']);
+        Route::get('/stats', [EmployeeController::class, 'stats']);
+        Route::get('/sync-logs', [EmployeeController::class, 'syncLogs']);
+        Route::post('/sync', [EmployeeController::class, 'triggerSync']);
+    });
+
     // Klasifikasi Nomor Surat
     Route::prefix('klasifikasi')->group(function () {
         Route::get('/', [KlasifikasiController::class, 'index']);
@@ -116,4 +133,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/detail-table', [ReportController::class, 'detailTable']);
         Route::get('/instances', [ReportController::class, 'instances']);
     });
+
 });

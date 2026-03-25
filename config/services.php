@@ -57,4 +57,5 @@ return [
         'link_qr' => env('ESIGN_LINK_QR', 'https://sppd.oganilirkab.go.id/'),
     ],
 
+
 ];
