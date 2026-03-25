@@ -31,6 +31,12 @@ class SuratTugas extends Model
         'penandatangan_nip',
         'penandatangan_jabatan',
         'penandatangan_instance_id',
+        'ppk_nama',
+        'ppk_nip',
+        'ppk_jabatan',
+        'ppk_pangkat',
+        'ppk_golongan',
+        'ppk_instance_id',
         'instance_id',
         'jenis_perjalanan',
         'tujuan_provinsi_id',
@@ -100,6 +106,11 @@ class SuratTugas extends Model
     public function pemberiPerintahInstance(): BelongsTo
     {
         return $this->belongsTo(Instance::class, 'pemberi_perintah_instance_id');
+    }
+
+    public function ppkInstance(): BelongsTo
+    {
+        return $this->belongsTo(Instance::class, 'ppk_instance_id');
     }
 
     public function instance(): BelongsTo

@@ -56,6 +56,7 @@ class DocumentService
             'instance',
             'pemberiPerintahInstance',
             'penandatanganInstance',
+            'ppkInstance',
             'pegawai',
             'suratPerjalananDinas.suratTugasPegawai',
         ]);
@@ -218,7 +219,10 @@ class DocumentService
 
             // Fill SPD main variables
             $tp->setValue('nomor_surat', $spd->nomor_spd ?? '-');
-            $tp->setValue('pejabat_pembuat_komitmen', $suratTugas->penandatangan_nama ?? '');
+
+            // PPK: Use dedicated PPK fields, fallback to penandatangan for backward compatibility
+            $ppkNama = $suratTugas->ppk_nama ?: $suratTugas->penandatangan_nama;
+            $tp->setValue('pejabat_pembuat_komitmen', $ppkNama ?? '');
 
             // Pegawai data
             $tp->setValue('pegawai_name', $pegawai->nama_lengkap ?? '');

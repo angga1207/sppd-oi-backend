@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\KategoriSuratController;
 use App\Http\Controllers\Api\SiCaramController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\GlobalSearchController;
+use App\Http\Controllers\Api\PpkController;
 
 /*
 |--------------------------------------------------------------------------
@@ -132,6 +133,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [ReportController::class, 'index']);
         Route::get('/detail-table', [ReportController::class, 'detailTable']);
         Route::get('/instances', [ReportController::class, 'instances']);
+    });
+
+    // Pejabat Pembuat Komitmen (PPK)
+    Route::prefix('ppk')->group(function () {
+        Route::get('/', [PpkController::class, 'index']);
+        Route::get('/instance/{instanceId}', [PpkController::class, 'getByInstance']);
+        Route::post('/', [PpkController::class, 'store']);
+        Route::put('/{id}', [PpkController::class, 'update']);
+        Route::delete('/{id}', [PpkController::class, 'destroy']);
+        Route::post('/{id}/set-active', [PpkController::class, 'setActive']);
     });
 
 });
