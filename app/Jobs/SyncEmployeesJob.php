@@ -74,13 +74,24 @@ class SyncEmployeesJob implements ShouldQueue
 
     private function syncInstance(Instance $instance, string $semestaUrl, string $apiKey): ?array
     {
-        $syncLog = EmployeeSyncLog::create([
-            'instance_id' => $instance->id,
-            'instance_name' => $instance->name,
-            'id_skpd' => $instance->id_eoffice,
-            'status' => 'running',
-            'started_at' => Carbon::now(),
-        ]);
+        $syncLog = EmployeeSyncLog::updateOrCreate(
+            [
+                'instance_id' => $instance->id,
+            ],
+            [
+                'instance_name' => $instance->name,
+                'id_skpd' => $instance->id_eoffice,
+                'status' => 'running',
+                'total_fetched' => 0,
+                'total_created' => 0,
+                'total_updated' => 0,
+                'total_deleted' => 0,
+                'error_message' => null,
+                'duration_seconds' => null,
+                'started_at' => Carbon::now(),
+                'finished_at' => null,
+            ]
+        );
 
         $startTime = microtime(true);
 

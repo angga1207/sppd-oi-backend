@@ -29,7 +29,7 @@ class ActivityLogService
                 $description,
                 $properties,
                 $request->ip(),
-                $request->userAgent()
+                $request->header('X-User-Agent') ?: $request->userAgent()
             );
         } catch (\Exception $e) {
             Log::error('ActivityLogService error: ' . $e->getMessage());

@@ -238,7 +238,7 @@ class AuthController extends Controller
                 'Login ke aplikasi',
                 null,
                 $request->ip(),
-                $request->userAgent()
+                $request->header('X-User-Agent') ?: $request->userAgent()
             );
 
             return response()->json([
@@ -275,7 +275,7 @@ class AuthController extends Controller
             'Logout dari aplikasi',
             null,
             $request->ip(),
-            $request->userAgent()
+            $request->header('X-User-Agent') ?: $request->userAgent()
         );
 
         $user->currentAccessToken()->delete();
