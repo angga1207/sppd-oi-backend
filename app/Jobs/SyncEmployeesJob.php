@@ -18,8 +18,9 @@ class SyncEmployeesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 1;
-    public int $timeout = 300;
+    public int $tries = 3;
+    public int $backoff = 30;
+    public int $timeout = 1000;
 
     public function __construct(
         public ?int $instanceId = null
@@ -42,7 +43,11 @@ class SyncEmployeesJob implements ShouldQueue
 
         // Phase 1: Upsert all employees across all instances (no deletions yet)
         $syncResults = [];
-        foreach ($instances as $instance) {
+        foreach ($instances as $index => $instance) {
+            // Delay between instances to avoid overwhelming the API / DNS
+            if ($index > 0) {
+                sleep(2);
+            }
             $syncResults[] = $this->syncInstance($instance, $semestaUrl, $apiKey);
         }
 
@@ -96,7 +101,9 @@ class SyncEmployeesJob implements ShouldQueue
         $startTime = microtime(true);
 
         try {
-            $response = Http::timeout(30)
+            $response = Http::connectTimeout(30)
+                ->timeout(60)
+                ->retry(3, 5000, throw: false)
                 ->withHeaders([
                     'Accept' => 'application/json',
                     'User-Agent' => 'PostmanRuntime/7.44.1',
