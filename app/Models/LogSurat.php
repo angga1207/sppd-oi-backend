@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Traits\HasNanoId;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LogSurat extends Model
 {
+    use HasNanoId;
     protected $table = 'log_surat';
 
     protected $fillable = [
@@ -74,7 +76,7 @@ class LogSurat extends Model
      * Helper: create a log entry
      */
     public static function catat(
-        int $suratTugasId,
+        string $suratTugasId,
         string $aksi,
         ?int $userId = null,
         ?string $keterangan = null,

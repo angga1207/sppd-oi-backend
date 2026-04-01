@@ -196,7 +196,7 @@ class SuratTugasController extends Controller
     /**
      * Show single surat tugas with all relations
      */
-    public function show(Request $request, int $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
         try {
             $suratTugas = SuratTugas::with([
@@ -463,7 +463,7 @@ class SuratTugasController extends Controller
     /**
      * Update surat tugas (only if draft)
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, string $id): JsonResponse
     {
         try {
             $suratTugas = SuratTugas::findOrFail($id);
@@ -674,7 +674,7 @@ class SuratTugasController extends Controller
     /**
      * Delete surat tugas (soft delete, only if draft)
      */
-    public function destroy(Request $request, int $id): JsonResponse
+    public function destroy(Request $request, string $id): JsonResponse
     {
         try {
             $suratTugas = SuratTugas::findOrFail($id);
@@ -720,7 +720,7 @@ class SuratTugasController extends Controller
      * Send surat tugas for signing (draft -> dikirim)
      * Also generates nomor surat and SPD files
      */
-    public function kirim(Request $request, int $id): JsonResponse
+    public function kirim(Request $request, string $id): JsonResponse
     {
         try {
             $suratTugas = SuratTugas::with(['pegawai', 'klasifikasi', 'instance', 'suratPerjalananDinas'])
@@ -843,7 +843,7 @@ class SuratTugasController extends Controller
     /**
      * Sign surat tugas (dikirim -> ditandatangani) with TTE eSign
      */
-    public function tandatangani(Request $request, int $id): JsonResponse
+    public function tandatangani(Request $request, string $id): JsonResponse
     {
         try {
             $request->validate([
@@ -1012,7 +1012,7 @@ class SuratTugasController extends Controller
     /**
      * Reject surat tugas (dikirim -> ditolak)
      */
-    public function tolak(Request $request, int $id): JsonResponse
+    public function tolak(Request $request, string $id): JsonResponse
     {
         try {
             $request->validate([
@@ -1078,7 +1078,7 @@ class SuratTugasController extends Controller
     /**
      * Revise rejected surat tugas back to draft (ditolak -> draft)
      */
-    public function revisi(Request $request, int $id): JsonResponse
+    public function revisi(Request $request, string $id): JsonResponse
     {
         try {
             $suratTugas = SuratTugas::with(['suratPerjalananDinas'])->findOrFail($id);
@@ -1140,7 +1140,7 @@ class SuratTugasController extends Controller
     /**
      * Mark surat tugas as selesai (ditandatangani -> selesai)
      */
-    public function selesai(Request $request, int $id): JsonResponse
+    public function selesai(Request $request, string $id): JsonResponse
     {
         try {
             $suratTugas = SuratTugas::with(['suratPerjalananDinas'])->findOrFail($id);
@@ -1192,7 +1192,7 @@ class SuratTugasController extends Controller
      * Download Surat Tugas document (PDF or DOCX)
      * Only allowed when status is 'ditandatangani' or 'selesai', unless secret key is provided
      */
-    public function download(Request $request, int $id)
+    public function download(Request $request, string $id)
     {
         try {
             $suratTugas = SuratTugas::findOrFail($id);
@@ -1248,7 +1248,7 @@ class SuratTugasController extends Controller
     /**
      * Regenerate all documents for a Surat Tugas
      */
-    public function regenerateDocument(Request $request, int $id): JsonResponse
+    public function regenerateDocument(Request $request, string $id): JsonResponse
     {
         try {
             $suratTugas = SuratTugas::findOrFail($id);
@@ -1315,7 +1315,7 @@ class SuratTugasController extends Controller
     /**
      * Get log/history for a surat tugas
      */
-    public function logSurat(int $id): JsonResponse
+    public function logSurat(string $id): JsonResponse
     {
         try {
             $suratTugas = SuratTugas::findOrFail($id);
@@ -1362,7 +1362,7 @@ class SuratTugasController extends Controller
     /**
      * Helper: record a log entry for surat tugas
      */
-    private function catatLog(Request $request, int $suratTugasId, string $aksi, ?string $keterangan = null): void
+    private function catatLog(Request $request, string $suratTugasId, string $aksi, ?string $keterangan = null): void
     {
         try {
             LogSurat::catat(

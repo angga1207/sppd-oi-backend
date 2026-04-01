@@ -63,7 +63,7 @@ class SpdController extends Controller
     /**
      * Show single SPD with full detail
      */
-    public function show(Request $request, int $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
         try {
             $spd = SuratPerjalananDinas::with([
@@ -181,7 +181,7 @@ class SpdController extends Controller
     /**
      * Submit laporan perjalanan dinas
      */
-    public function submitLaporan(Request $request, int $spdId): JsonResponse
+    public function submitLaporan(Request $request, string $spdId): JsonResponse
     {
         try {
             $request->validate([
@@ -240,7 +240,7 @@ class SpdController extends Controller
      * Update SPD (nomor_spd and/or tingkat_biaya)
      * Only the creator of the parent surat tugas can update
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, string $id): JsonResponse
     {
         try {
             $request->validate([
@@ -308,7 +308,7 @@ class SpdController extends Controller
      * Download SPD document (PDF or DOCX)
      * Only allowed when status is 'ditandatangani' or 'selesai', unless secret key is provided
      */
-    public function download(Request $request, int $id)
+    public function download(Request $request, string $id)
     {
         try {
             $spd = SuratPerjalananDinas::with('suratTugas')->findOrFail($id);
@@ -364,7 +364,7 @@ class SpdController extends Controller
      * Sync pengikut (keluarga pegawai) for an SPD
      * Replaces all existing pengikut with the provided list
      */
-    public function syncPengikut(Request $request, int $spdId): JsonResponse
+    public function syncPengikut(Request $request, string $spdId): JsonResponse
     {
         try {
             $request->validate([

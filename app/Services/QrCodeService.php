@@ -12,10 +12,10 @@ class QrCodeService
      * Generate QR Code for Surat Tugas (ST)
      *
      * @param string $templateType 'bupati' | 'sekda' | 'perangkat_daerah'
-     * @param int $suratTugasId
+     * @param string $suratTugasId
      * @return string|null Absolute path to QR code image
      */
-    public function generateQrCodeST(string $templateType, int $suratTugasId): ?string
+    public function generateQrCodeST(string $templateType, string $suratTugasId): ?string
     {
         try {
             $frontendUrl = rtrim(config('app.frontend_url'), '/');
@@ -51,10 +51,10 @@ class QrCodeService
      * Generate QR Code for Surat Perjalanan Dinas (SPD)
      *
      * @param string $templateType 'bupati' | 'sekda' | 'perangkat_daerah'
-     * @param int $spdId
+     * @param string $spdId
      * @return string|null Absolute path to QR code image
      */
-    public function generateQrCodeSPD(string $templateType, int $spdId): ?string
+    public function generateQrCodeSPD(string $templateType, string $spdId): ?string
     {
         try {
             $frontendUrl = rtrim(config('app.frontend_url'), '/');

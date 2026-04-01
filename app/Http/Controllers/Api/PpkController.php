@@ -52,18 +52,19 @@ class PpkController extends Controller
     }
 
     /**
-     * Get PPK for a specific OPD (active only)
+     * Get all active PPK for a specific OPD
      */
     public function getByInstance(Request $request, int $instanceId): JsonResponse
     {
         try {
-            $ppk = PejabatPembuatKomitmen::where('instance_id', $instanceId)
+            $ppkList = PejabatPembuatKomitmen::where('instance_id', $instanceId)
                 ->where('is_active', true)
-                ->first();
+                ->orderBy('nama')
+                ->get();
 
             return response()->json([
                 'success' => true,
-                'data' => $ppk,
+                'data' => $ppkList,
             ]);
         } catch (\Exception $e) {
             Log::error('PPK getByInstance error: ' . $e->getMessage());

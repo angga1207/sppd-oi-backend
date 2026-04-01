@@ -12,7 +12,7 @@ class ScanController extends Controller
     /**
      * Verify and display Surat Tugas data from QR code scan
      */
-    public function verifySuratTugas(int $id): JsonResponse
+    public function verifySuratTugas(string $id): JsonResponse
     {
         $st = SuratTugas::with([
             'instance',
@@ -61,7 +61,7 @@ class ScanController extends Controller
     /**
      * Verify and display SPD data from QR code scan
      */
-    public function verifySpd(int $id): JsonResponse
+    public function verifySpd(string $id): JsonResponse
     {
         $spd = SuratPerjalananDinas::with([
             'suratTugas.instance',

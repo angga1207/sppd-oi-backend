@@ -10,7 +10,7 @@ return new class extends Migration
     {
         // Surat Tugas (induk)
         Schema::create('surat_tugas', function (Blueprint $table) {
-            $table->id();
+            $table->string('id', 11)->primary();
             $table->string('nomor_surat')->nullable();
             $table->foreignId('klasifikasi_id')
                 ->nullable()
@@ -104,9 +104,10 @@ return new class extends Migration
 
         // Pegawai yang ditugaskan (many-to-many pivot)
         Schema::create('surat_tugas_pegawai', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('surat_tugas_id')
-                ->constrained('surat_tugas')
+            $table->string('id', 11)->primary();
+            $table->string('surat_tugas_id', 11);
+            $table->foreign('surat_tugas_id')
+                ->references('id')->on('surat_tugas')
                 ->cascadeOnDelete();
 
             // Data pegawai snapshot (dari Semesta API)
@@ -128,15 +129,17 @@ return new class extends Migration
 
         // Surat Perjalanan Dinas (child of Surat Tugas, 1 per pegawai)
         Schema::create('surat_perjalanan_dinas', function (Blueprint $table) {
-            $table->id();
+            $table->string('id', 11)->primary();
             $table->string('nomor_spd')->nullable();
             $table->string('tingkat_biaya', 1)->nullable()
                 ->comment('Tingkat biaya perjalanan dinas: A-G berdasarkan eselon/golongan');
-            $table->foreignId('surat_tugas_id')
-                ->constrained('surat_tugas')
+            $table->string('surat_tugas_id', 11);
+            $table->foreign('surat_tugas_id')
+                ->references('id')->on('surat_tugas')
                 ->cascadeOnDelete();
-            $table->foreignId('surat_tugas_pegawai_id')
-                ->constrained('surat_tugas_pegawai')
+            $table->string('surat_tugas_pegawai_id', 11);
+            $table->foreign('surat_tugas_pegawai_id')
+                ->references('id')->on('surat_tugas_pegawai')
                 ->cascadeOnDelete();
 
             // Status follows Surat Tugas but can track individually
@@ -165,8 +168,9 @@ return new class extends Migration
         // Laporan pasca perjalanan dinas
         Schema::create('laporan_perjalanan_dinas', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('spd_id')
-                ->constrained('surat_perjalanan_dinas')
+            $table->string('spd_id', 11);
+            $table->foreign('spd_id')
+                ->references('id')->on('surat_perjalanan_dinas')
                 ->cascadeOnDelete();
             $table->text('laporan')->nullable(); // isi laporan
             $table->json('lampiran')->nullable(); // array of file paths
@@ -176,8 +180,9 @@ return new class extends Migration
         // Pengikut SPD
         Schema::create('spd_pengikut', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('spd_id')
-                ->constrained('surat_perjalanan_dinas')
+            $table->string('spd_id', 11);
+            $table->foreign('spd_id')
+                ->references('id')->on('surat_perjalanan_dinas')
                 ->cascadeOnDelete();
             $table->string('nama');
             $table->date('tanggal_lahir')->nullable();

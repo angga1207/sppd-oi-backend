@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasNanoId;
 use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SuratPerjalananDinas extends Model
 {
-    use SoftDeletes, Searchable;
+    use SoftDeletes, Searchable, HasNanoId;
 
     protected $table = 'surat_perjalanan_dinas';
 
