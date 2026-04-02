@@ -792,14 +792,28 @@ class SuratTugasController extends Controller
                 $suratTugas->update(['status' => 'dikirim']);
             });
 
+            // Refresh model to get all committed data (nomor_surat, nomor_spd, etc.)
+            $suratTugas->refresh()->load([
+                'klasifikasi',
+                'kategori',
+                'instance',
+                'pegawai',
+                'suratPerjalananDinas.suratTugasPegawai',
+            ]);
+
             // Generate documents (ST + SPD PDFs) after transaction
+            $docWarning = null;
             try {
                 $this->documentService->generateAllDocuments($suratTugas);
             } catch (\Exception $docEx) {
-                Log::warning('Document generation failed but surat tugas was sent: ' . $docEx->getMessage());
-                // Don't fail the kirim action if document generation fails
+                $docWarning = 'Dokumen gagal digenerate: ' . $docEx->getMessage();
+                Log::error('Document generation failed after kirim: ' . $docEx->getMessage(), [
+                    'surat_tugas_id' => $suratTugas->id,
+                    'trace' => $docEx->getTraceAsString(),
+                ]);
             }
 
+            // Refresh again to get updated file paths
             $suratTugas->refresh()->load([
                 'klasifikasi',
                 'kategori',
@@ -822,7 +836,10 @@ class SuratTugasController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Surat tugas berhasil dikirim untuk ditandatangani.',
+                'message' => $docWarning
+                    ? 'Surat tugas berhasil dikirim, namun dokumen gagal digenerate. Silakan regenerate dokumen.'
+                    : 'Surat tugas berhasil dikirim untuk ditandatangani.',
+                'doc_warning' => $docWarning,
                 'data' => $suratTugas,
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {

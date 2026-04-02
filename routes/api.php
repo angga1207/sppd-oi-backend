@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\KategoriSuratController;
 use App\Http\Controllers\Api\SiCaramController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\GlobalSearchController;
+use App\Http\Controllers\Api\MobileController;
 use App\Http\Controllers\Api\PpkController;
 
 /*
@@ -145,4 +146,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/set-active', [PpkController::class, 'setActive']);
     });
 
+});
+
+// Mobile API routes for Semesta Android app (no Bearer token — uses NIP param)
+Route::prefix('mobile')->group(function () {
+    // GET endpoints — nip via query parameter (?nip=xxx)
+    Route::get('/surat-tugas', [MobileController::class, 'listSuratTugas']);
+    Route::get('/surat-tugas/{id}', [MobileController::class, 'detailSuratTugas']);
+    Route::get('/spd-saya', [MobileController::class, 'listSpdSaya']);
+    Route::get('/spd/{id}', [MobileController::class, 'detailSpd']);
+
+    // POST endpoints — nip via request body
+    Route::post('/surat-tugas/{id}/tandatangani', [MobileController::class, 'tandatangani']);
+    Route::post('/surat-tugas/{id}/tolak', [MobileController::class, 'tolak']);
 });

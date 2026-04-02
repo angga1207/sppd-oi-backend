@@ -11,7 +11,7 @@ class ScanVerificationController extends Controller
     /**
      * Verify Surat Tugas by ID (QR code scan)
      */
-    public function verifySuratTugas(int $id): JsonResponse
+    public function verifySuratTugas(string $id): JsonResponse
     {
         $suratTugas = SuratTugas::with(['instance', 'pegawai'])->find($id);
 
@@ -47,7 +47,7 @@ class ScanVerificationController extends Controller
     /**
      * Verify Surat Perjalanan Dinas by ID (QR code scan)
      */
-    public function verifySpd(int $id): JsonResponse
+    public function verifySpd(string $id): JsonResponse
     {
         $spd = SuratPerjalananDinas::with(['suratTugas.instance', 'suratTugasPegawai'])->find($id);
 

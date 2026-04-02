@@ -19,7 +19,7 @@ class ScanController extends Controller
             'pegawai',
             'pemberiPerintahInstance',
             'penandatanganInstance',
-        ])->find($id);
+        ])->where('id', $id)->first();
 
         if (!$st) {
             return response()->json([
@@ -67,7 +67,7 @@ class ScanController extends Controller
             'suratTugas.instance',
             'suratTugas.penandatanganInstance',
             'suratTugasPegawai',
-        ])->find($id);
+        ])->where('id', $id)->first();
 
         if (!$spd) {
             return response()->json([
