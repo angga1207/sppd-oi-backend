@@ -396,6 +396,7 @@ class DocumentService
         // Fallback: check common paths (suppress open_basedir warnings)
         if (!$soffice) {
             $possiblePaths = [
+                'libreoffice',
                 '/usr/local/bin/soffice',
                 '/Applications/LibreOffice.app/Contents/MacOS/soffice',
                 '/usr/bin/soffice',
