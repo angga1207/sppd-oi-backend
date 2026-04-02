@@ -379,31 +379,34 @@ class DocumentService
 
         // Find soffice binary
         $soffice = null;
-        $possiblePaths = [
-            // Common paths for LibreOffice on different OSes
-            '/usr/local/bin/soffice',
-            '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-            '/usr/bin/soffice',
-            '/usr/bin/libreoffice',
 
-            // Linux LibreOffice
-            '/usr/bin/libreoffice',
-            '/usr/bin/soffice',
-            'libreoffice',
-        ];
+        // First try `which` — this works even with open_basedir restrictions
+        $which = trim(shell_exec('which soffice 2>/dev/null') ?? '');
+        if ($which) {
+            $soffice = $which;
+        }
 
-        foreach ($possiblePaths as $path) {
-            if (file_exists($path)) {
-                $soffice = $path;
-                break;
+        if (!$soffice) {
+            $which = trim(shell_exec('which libreoffice 2>/dev/null') ?? '');
+            if ($which) {
+                $soffice = $which;
             }
         }
 
-        // Also try which
+        // Fallback: check common paths (suppress open_basedir warnings)
         if (!$soffice) {
-            $which = trim(shell_exec('which soffice 2>/dev/null') ?? '');
-            if ($which && file_exists($which)) {
-                $soffice = $which;
+            $possiblePaths = [
+                '/usr/local/bin/soffice',
+                '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+                '/usr/bin/soffice',
+                '/usr/bin/libreoffice',
+            ];
+
+            foreach ($possiblePaths as $path) {
+                if (@file_exists($path)) {
+                    $soffice = $path;
+                    break;
+                }
             }
         }
 

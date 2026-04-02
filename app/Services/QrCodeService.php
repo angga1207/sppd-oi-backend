@@ -146,7 +146,7 @@ class QrCodeService
             if (!$magick) {
                 $magick = trim(shell_exec('which convert 2>/dev/null') ?? '');
             }
-            if ($magick && file_exists($magick)) {
+            if ($magick) {
                 shell_exec(sprintf(
                     '%s -background white -density 300 %s -resize %dx%d %s 2>/dev/null',
                     escapeshellarg($magick),
@@ -162,7 +162,7 @@ class QrCodeService
         // Method 2: rsvg-convert (common on Linux)
         if (!$converted) {
             $rsvg = trim(shell_exec('which rsvg-convert 2>/dev/null') ?? '');
-            if ($rsvg && file_exists($rsvg)) {
+            if ($rsvg) {
                 shell_exec(sprintf(
                     '%s -w %d -h %d -f png -o %s %s 2>/dev/null',
                     escapeshellarg($rsvg),
@@ -178,7 +178,7 @@ class QrCodeService
         // Method 3: Inkscape
         if (!$converted) {
             $inkscape = trim(shell_exec('which inkscape 2>/dev/null') ?? '');
-            if ($inkscape && file_exists($inkscape)) {
+            if ($inkscape) {
                 shell_exec(sprintf(
                     '%s %s --export-type=png --export-filename=%s -w %d -h %d 2>/dev/null',
                     escapeshellarg($inkscape),
@@ -429,6 +429,16 @@ class QrCodeService
      */
     private function findSoffice(): ?string
     {
+        $which = trim(shell_exec('which soffice 2>/dev/null') ?? '');
+        if ($which) {
+            return $which;
+        }
+
+        $which = trim(shell_exec('which libreoffice 2>/dev/null') ?? '');
+        if ($which) {
+            return $which;
+        }
+
         $possiblePaths = [
             '/usr/local/bin/soffice',
             '/Applications/LibreOffice.app/Contents/MacOS/soffice',
@@ -437,13 +447,12 @@ class QrCodeService
         ];
 
         foreach ($possiblePaths as $path) {
-            if (file_exists($path)) {
+            if (@file_exists($path)) {
                 return $path;
             }
         }
 
-        $which = trim(shell_exec('which soffice 2>/dev/null') ?? '');
-        return ($which && file_exists($which)) ? $which : null;
+        return null;
     }
 
     /**
