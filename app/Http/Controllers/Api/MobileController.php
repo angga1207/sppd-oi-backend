@@ -197,6 +197,19 @@ class MobileController extends Controller
                 ], 403);
             }
 
+            // Add file URLs
+            $suratTugas->file_surat_tugas_url = $suratTugas->file_surat_tugas ? asset($suratTugas->file_surat_tugas) : null;
+            $suratTugas->file_surat_tugas_signed_url = $suratTugas->file_surat_tugas_signed ? asset($suratTugas->file_surat_tugas_signed) : null;
+
+            // SPDs file URLs if exists and more than 1 SPD
+            if ($suratTugas->has_spd && $suratTugas->suratPerjalananDinas) {
+                foreach ($suratTugas->suratPerjalananDinas as $spd) {
+                    $spd->file_spd_url = $spd->file_spd ? asset($spd->file_spd) : null;
+                    $spd->file_spd_signed_url = $spd->file_spd_signed ? asset($spd->file_spd_signed) : null;
+                }
+            }
+
+
             return response()->json([
                 'success' => true,
                 'data' => $suratTugas,
