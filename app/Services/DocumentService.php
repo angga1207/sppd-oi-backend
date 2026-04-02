@@ -397,10 +397,10 @@ class DocumentService
         if (!$soffice) {
             $possiblePaths = [
                 'libreoffice',
-                '/usr/local/bin/soffice',
+                // '/usr/local/bin/soffice',
                 '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-                '/usr/bin/soffice',
-                '/usr/bin/libreoffice',
+                // '/usr/bin/soffice',
+                // '/usr/bin/libreoffice',
             ];
 
             foreach ($possiblePaths as $path) {
@@ -412,7 +412,7 @@ class DocumentService
         }
 
         if (!$soffice) {
-            Log::warning('LibreOffice not found. Keeping .docx format.');
+            Log::warning('LibreOffice not found. Keeping .docx format.' . $soffice);
             return null;
         }
 
