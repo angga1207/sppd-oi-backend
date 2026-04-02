@@ -139,12 +139,13 @@ class QrCodeService
         // Try using external tools to convert SVG to PNG
         $tmpPng = tempnam(sys_get_temp_dir(), 'qr_png_') . '.png';
         $converted = false;
+        $ep = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
         // Method 1: ImageMagick CLI (magick/convert)
         if (!$converted) {
-            $magick = trim(shell_exec('which magick 2>/dev/null') ?? '');
+            $magick = trim(shell_exec("PATH={$ep}:\$PATH command -v magick 2>/dev/null") ?? '');
             if (!$magick) {
-                $magick = trim(shell_exec('which convert 2>/dev/null') ?? '');
+                $magick = trim(shell_exec("PATH={$ep}:\$PATH command -v convert 2>/dev/null") ?? '');
             }
             if ($magick) {
                 shell_exec(sprintf(
@@ -161,7 +162,7 @@ class QrCodeService
 
         // Method 2: rsvg-convert (common on Linux)
         if (!$converted) {
-            $rsvg = trim(shell_exec('which rsvg-convert 2>/dev/null') ?? '');
+            $rsvg = trim(shell_exec("PATH={$ep}:\$PATH command -v rsvg-convert 2>/dev/null") ?? '');
             if ($rsvg) {
                 shell_exec(sprintf(
                     '%s -w %d -h %d -f png -o %s %s 2>/dev/null',
@@ -177,7 +178,7 @@ class QrCodeService
 
         // Method 3: Inkscape
         if (!$converted) {
-            $inkscape = trim(shell_exec('which inkscape 2>/dev/null') ?? '');
+            $inkscape = trim(shell_exec("PATH={$ep}:\$PATH command -v inkscape 2>/dev/null") ?? '');
             if ($inkscape) {
                 shell_exec(sprintf(
                     '%s %s --export-type=png --export-filename=%s -w %d -h %d 2>/dev/null',
@@ -429,25 +430,29 @@ class QrCodeService
      */
     private function findSoffice(): ?string
     {
-        $which = trim(shell_exec('which soffice 2>/dev/null') ?? '');
+        $fullPath = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+
+        $which = trim(shell_exec("PATH={$fullPath}:\$PATH command -v soffice 2>/dev/null") ?? '');
         if ($which) {
             return $which;
         }
 
-        $which = trim(shell_exec('which libreoffice 2>/dev/null') ?? '');
+        $which = trim(shell_exec("PATH={$fullPath}:\$PATH command -v libreoffice 2>/dev/null") ?? '');
         if ($which) {
             return $which;
         }
 
         $possiblePaths = [
-            '/usr/local/bin/soffice',
-            '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-            '/usr/bin/soffice',
             '/usr/bin/libreoffice',
+            '/usr/bin/soffice',
+            '/usr/local/bin/soffice',
+            '/usr/local/bin/libreoffice',
+            '/Applications/LibreOffice.app/Contents/MacOS/soffice',
         ];
 
         foreach ($possiblePaths as $path) {
-            if (@file_exists($path)) {
+            $check = shell_exec("test -x " . escapeshellarg($path) . " && echo 'ok' 2>/dev/null");
+            if (trim($check ?? '') === 'ok') {
                 return $path;
             }
         }

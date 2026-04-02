@@ -380,31 +380,36 @@ class DocumentService
         // Find soffice binary
         $soffice = null;
 
-        // First try `which` — this works even with open_basedir restrictions
-        $which = trim(shell_exec('which soffice 2>/dev/null') ?? '');
+        // PHP-FPM typically has a very limited PATH, so we expand it manually
+        $fullPath = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+
+        // Try `command -v` with expanded PATH (more reliable than `which` under PHP-FPM)
+        $which = trim(shell_exec("PATH={$fullPath}:\$PATH command -v soffice 2>/dev/null") ?? '');
         if ($which) {
             $soffice = $which;
         }
 
         if (!$soffice) {
-            $which = trim(shell_exec('which libreoffice 2>/dev/null') ?? '');
+            $which = trim(shell_exec("PATH={$fullPath}:\$PATH command -v libreoffice 2>/dev/null") ?? '');
             if ($which) {
                 $soffice = $which;
             }
         }
 
-        // Fallback: check common paths (suppress open_basedir warnings)
+        // Fallback: try common absolute paths directly via shell test -x (avoids open_basedir)
         if (!$soffice) {
             $possiblePaths = [
-                'libreoffice',
-                // '/usr/local/bin/soffice',
+                '/usr/bin/libreoffice',
+                '/usr/bin/soffice',
+                '/usr/local/bin/soffice',
+                '/usr/local/bin/libreoffice',
                 '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-                // '/usr/bin/soffice',
-                // '/usr/bin/libreoffice',
             ];
 
             foreach ($possiblePaths as $path) {
-                if (@file_exists($path)) {
+                // Use shell `test -x` to check existence+executable — bypasses open_basedir
+                $check = shell_exec("test -x " . escapeshellarg($path) . " && echo 'ok' 2>/dev/null");
+                if (trim($check ?? '') === 'ok') {
                     $soffice = $path;
                     break;
                 }
@@ -412,9 +417,11 @@ class DocumentService
         }
 
         if (!$soffice) {
-            Log::warning('LibreOffice not found. Keeping .docx format.' . $soffice);
+            Log::warning('LibreOffice not found. Keeping .docx format.');
             return null;
         }
+
+        Log::info("LibreOffice found at: {$soffice}");
 
         // Use a unique user installation directory to avoid lock conflicts
         $userInstall = storage_path('app/libreoffice_profile_' . getmypid());
