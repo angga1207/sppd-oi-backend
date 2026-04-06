@@ -154,7 +154,7 @@ Route::prefix('mobile')->group(function () {
     Route::get('/surat-tugas', [MobileController::class, 'listSuratTugas']);
     Route::get('/surat-tugas/{id}', [MobileController::class, 'detailSuratTugas']);
     Route::get('/spd-saya', [MobileController::class, 'listSpdSaya']);
-    Route::get('/spd/{id}', [MobileController::class, 'detailSpd']);
+    Route::get('/spd-saya/{id}', [MobileController::class, 'detailSpd']);
 
     // POST endpoints — nip via request body
     Route::post('/surat-tugas/{id}/tandatangani', [MobileController::class, 'tandatangani']);
