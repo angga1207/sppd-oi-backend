@@ -2,16 +2,17 @@
 
 namespace App\Models;
 
+use App\Traits\ConvertHtmlListToText;
 use App\Traits\HasNanoId;
 use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SuratTugas extends Model
 {
-    use SoftDeletes, Searchable, HasNanoId;
+    use SoftDeletes, Searchable, HasNanoId, ConvertHtmlListToText;
 
     protected $table = 'surat_tugas';
 
@@ -156,6 +157,18 @@ class SuratTugas extends Model
         return $this->hasMany(LogSurat::class, 'surat_tugas_id');
     }
 
+    // formatted dasar (HTML list to text)
+    public function getDasarFormattedAttribute(): string
+    {
+        return $this->convertHtmlListToText($this->dasar);
+    }
+
+    // formatted untuk (HTML list to text)
+    public function getUntukFormattedAttribute(): string
+    {
+        return $this->convertHtmlListToText($this->untuk);
+    }
+
     // Helper: can edit only if draft
     public function canEdit(): bool
     {
@@ -167,5 +180,4 @@ class SuratTugas extends Model
     {
         return $this->status === 'draft';
     }
-
 }
