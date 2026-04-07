@@ -149,7 +149,7 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Mobile API routes for Semesta Android app (no Bearer token — uses NIP param)
-Route::prefix('mobile')->group(function () {
+Route::prefix('mobile')->middleware(\App\Http\Middleware\MobileApiKeyMiddleware::class)->group(function () {
     // GET endpoints — nip via query parameter (?nip=xxx)
     Route::get('/surat-tugas', [MobileController::class, 'listSuratTugas']);
     Route::get('/surat-tugas/{id}', [MobileController::class, 'detailSuratTugas']);
