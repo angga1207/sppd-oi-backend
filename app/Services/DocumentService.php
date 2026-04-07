@@ -76,7 +76,7 @@ class DocumentService
                     $results['spd'][] = $spdPath;
                     $spd->update([
                         'file_spd' => $spdPath,
-                        'spd_status' => 'dikirim', // Update status to 'dikirim' after document generation
+                        'status' => 'dikirim', // Update status to 'dikirim' after document generation
                     ]);
                 }
             }
