@@ -328,6 +328,10 @@ class MobileController extends Controller
                 }
             }
 
+            // Add file URLs
+            $spd->file_spd_url = $spd->file_spd ? asset($spd->file_spd) : null;
+            $spd->file_spd_signed_url = $spd->file_spd_signed ? asset($spd->file_spd_signed) : null;
+
             return response()->json(['success' => true, 'data' => $spd]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['success' => false, 'message' => 'SPD tidak ditemukan.'], 404);
