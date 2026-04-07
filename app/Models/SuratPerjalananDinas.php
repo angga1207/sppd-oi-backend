@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\ConvertHtmlListToText;
 use App\Traits\HasNanoId;
 use App\Traits\Searchable;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SuratPerjalananDinas extends Model
 {
-    use SoftDeletes, Searchable, HasNanoId;
+    use SoftDeletes, Searchable, HasNanoId, ConvertHtmlListToText;
 
     protected $table = 'surat_perjalanan_dinas';
 
@@ -135,5 +136,27 @@ class SuratPerjalananDinas extends Model
     public function pengikut(): HasMany
     {
         return $this->hasMany(SpdPengikut::class, 'spd_id');
+    }
+
+    // When getting data for mobile, convert dasar and untuk from HTML list to text
+    public function getDasarFormattedAttribute(): string
+    {
+        return $this->convertHtmlListToText($this->suratTugas->dasar);
+    }
+
+    public function getUntukFormattedAttribute(): string
+    {
+        return $this->convertHtmlListToText($this->suratTugas->untuk);
+    }
+
+    // Add file URLs for mobile response
+    public function getFileSpdUrlAttribute(): ?string
+    {
+        return $this->file_spd ? asset($this->file_spd) : null;
+    }
+
+    public function getFileSpdSignedUrlAttribute(): ?string
+    {
+        return $this->file_spd_signed ? asset($this->file_spd_signed) : null;
     }
 }
