@@ -25,9 +25,11 @@ use App\Http\Controllers\Api\PpkController;
 |--------------------------------------------------------------------------
 */
 
-// Public routes
-Route::post('/auth/login', [AuthController::class, 'login']);
-Route::post('/auth/login-status', [AuthController::class, 'loginStatus']);
+// Public routes - Authentication with strict rate limiting
+Route::middleware('throttle:auth')->group(function () {
+    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/login-status', [AuthController::class, 'loginStatus']);
+});
 
 // Region data (public, cached)
 Route::prefix('region')->group(function () {
@@ -149,14 +151,19 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Mobile API routes for Semesta Android app (no Bearer token — uses NIP param)
-Route::prefix('mobile')->middleware(\App\Http\Middleware\MobileApiKeyMiddleware::class)->group(function () {
-    // GET endpoints — nip via query parameter (?nip=xxx)
-    Route::get('/surat-tugas', [MobileController::class, 'listSuratTugas']);
-    Route::get('/surat-tugas/{id}', [MobileController::class, 'detailSuratTugas']);
-    Route::get('/spd-saya', [MobileController::class, 'listSpdSaya']);
-    Route::get('/spd-saya/{id}', [MobileController::class, 'detailSpd']);
+Route::prefix('mobile')
+    ->middleware([
+        \App\Http\Middleware\MobileApiKeyMiddleware::class,
+        'throttle:mobile'
+    ])
+    ->group(function () {
+        // GET endpoints — nip via query parameter (?nip=xxx)
+        Route::get('/surat-tugas', [MobileController::class, 'listSuratTugas']);
+        Route::get('/surat-tugas/{id}', [MobileController::class, 'detailSuratTugas']);
+        Route::get('/spd-saya', [MobileController::class, 'listSpdSaya']);
+        Route::get('/spd-saya/{id}', [MobileController::class, 'detailSpd']);
 
-    // POST endpoints — nip via request body
-    Route::post('/surat-tugas/{id}/tandatangani', [MobileController::class, 'tandatangani']);
-    Route::post('/surat-tugas/{id}/tolak', [MobileController::class, 'tolak']);
-});
+        // POST endpoints — nip via request body
+        Route::post('/surat-tugas/{id}/tandatangani', [MobileController::class, 'tandatangani']);
+        Route::post('/surat-tugas/{id}/tolak', [MobileController::class, 'tolak']);
+    });

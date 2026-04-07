@@ -56,6 +56,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mobile API Key
+    |--------------------------------------------------------------------------
+    |
+    | This key is used to authenticate requests from the mobile application.
+    | Set this in your .env file with a secure random string.
+    |
+    */
+
+    'mobile_api_key' => env('MOBILE_API_KEY'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

@@ -15,6 +15,25 @@ use Illuminate\Support\Facades\Storage;
 class SpdController extends Controller
 {
     /**
+     * Check if user can edit SPD (must be creator or super admin)
+     */
+    private function canEditSpd($user, $spd): bool
+    {
+        $user->loadMissing('role');
+        $isSuperAdmin = ($user->role->slug ?? '') === 'super-admin';
+
+        if ($isSuperAdmin) {
+            return true;
+        }
+
+        if ($spd->suratTugas && (int) $spd->suratTugas->created_by === (int) $user->id) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * List SPDs — filtered by user instance, paginated
      */
     public function index(Request $request): JsonResponse
@@ -30,9 +49,9 @@ class SpdController extends Controller
                 'laporanPerjalananDinas',
                 'pengikut',
             ])
-            ->whereHas('suratTugas', function ($q) use ($user) {
-                $q->where('instance_id', $user->instance_id);
-            });
+                ->whereHas('suratTugas', function ($q) use ($user) {
+                    $q->where('instance_id', $user->instance_id);
+                });
 
             // Search
             if ($search = $request->input('search')) {
@@ -148,9 +167,9 @@ class SpdController extends Controller
                 'laporanPerjalananDinas',
                 'pengikut',
             ])
-            ->whereHas('suratTugasPegawai', function ($q) use ($userNip) {
-                $q->where('nip', $userNip);
-            });
+                ->whereHas('suratTugasPegawai', function ($q) use ($userNip) {
+                    $q->where('nip', $userNip);
+                });
 
             // Search
             if ($search = $request->input('search')) {
@@ -250,9 +269,9 @@ class SpdController extends Controller
 
             $spd = SuratPerjalananDinas::with('suratTugas')->findOrFail($id);
 
-            // Only the creator of the surat tugas can edit the SPD
+            // Only the creator of the surat tugas or super admin can edit the SPD
             $user = $request->user();
-            if ($spd->suratTugas && $spd->suratTugas->created_by !== $user->id) {
+            if (!$this->canEditSpd($user, $spd)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Hanya pembuat surat tugas yang dapat mengubah SPD ini.',
@@ -375,6 +394,15 @@ class SpdController extends Controller
             ]);
 
             $spd = SuratPerjalananDinas::with('suratTugas')->findOrFail($spdId);
+
+            // Authorization check: only creator or super admin can edit
+            $user = $request->user();
+            if (!$this->canEditSpd($user, $spd)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya pembuat surat tugas atau Super Admin yang dapat mengubah pengikut SPD ini.',
+                ], 403);
+            }
 
             // Only allow editing when the parent surat tugas is in draft
             if ($spd->suratTugas && $spd->suratTugas->status !== 'draft') {

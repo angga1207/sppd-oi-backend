@@ -8,16 +8,18 @@ use Symfony\Component\HttpFoundation\Response;
 
 class MobileApiKeyMiddleware
 {
-    private const API_KEY = 'app-@ngg4Gant3nG-SpPd-OI';
-
+    /**
+     * Validate mobile app API key from environment variable.
+     */
     public function handle(Request $request, Closure $next): Response
     {
         $apiKey = $request->header('x-api-key');
+        $validApiKey = config('app.mobile_api_key');
 
-        if ($apiKey !== self::API_KEY) {
+        if (!$validApiKey || $apiKey !== $validApiKey) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized. Invalid API key.',
+                'message' => 'Unauthorized. Invalid or missing API key.',
             ], 401);
         }
 
