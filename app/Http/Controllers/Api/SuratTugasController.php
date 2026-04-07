@@ -898,10 +898,10 @@ class SuratTugasController extends Controller
             $passphrase = $request->input('passphrase');
             $esignService = new \App\Services\ESignService();
 
-            // lock nik and passphrase =====================================================================
-            $signerNik = '1610071606900001'; // hardcoded for testing, replace with $signerNik in production
-            $passphrase = 'Juventini@1897'; // hardcoded for testing, replace with $passphrase in production
-            // ============================================================================================
+            // // lock nik and passphrase =====================================================================
+            // $signerNik = '1610071606900001'; // hardcoded for testing, replace with $signerNik in production
+            // $passphrase = 'Juventini@1897'; // hardcoded for testing, replace with $passphrase in production
+            // // ============================================================================================
 
             // === Sign Surat Tugas PDF ===
             if (!$suratTugas->file_surat_tugas) {
