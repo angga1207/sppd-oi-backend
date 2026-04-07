@@ -74,7 +74,10 @@ class DocumentService
                 $spdPath = $this->generateSpd($suratTugas, $spd);
                 if ($spdPath) {
                     $results['spd'][] = $spdPath;
-                    $spd->update(['file_spd' => $spdPath]);
+                    $spd->update([
+                        'file_spd' => $spdPath,
+                        'spd_status' => 'dikirim', // Update status to 'dikirim' after document generation
+                    ]);
                 }
             }
         }
