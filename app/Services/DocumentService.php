@@ -538,32 +538,37 @@ class DocumentService
         $pythonPath = '';
         $pythonVersion = shell_exec("python3 --version 2>&1");
         if ($pythonVersion) {
-            // Try to find Python lib directory
+            // Hardcode common Python lib paths (avoid is_dir() due to open_basedir restriction)
+            // These paths are standard in RHEL/Rocky Linux
             $pythonLibDirs = [
                 '/usr/lib64/python3.9',
                 '/usr/lib64/python3.11',
+                '/usr/lib64/python3.10',
                 '/usr/lib/python3.9',
                 '/usr/lib/python3.11',
             ];
 
-            foreach ($pythonLibDirs as $dir) {
-                if (is_dir($dir)) {
-                    $pythonPath = $dir;
-                    break;
-                }
-            }
+            // Just use the first one that matches Python version, skip directory check
+            $versionMatch = preg_match('/Python (\d+\.\d+)/', $pythonVersion, $matches);
+            if ($versionMatch) {
+                $pyVer = $matches[1];
+                $pythonPath = "/usr/lib64/python{$pyVer}";
 
-            Log::info("Python detected", [
-                'version' => trim($pythonVersion),
-                'lib_path' => $pythonPath ?: 'not found',
-            ]);
+                Log::info("Python detected", [
+                    'version' => trim($pythonVersion),
+                    'lib_path' => $pythonPath,
+                ]);
+            } else {
+                // Fallback to 3.9 (most common in Rocky 9)
+                $pythonPath = '/usr/lib64/python3.9';
+                Log::info("Python detected (fallback)", [
+                    'version' => trim($pythonVersion),
+                    'lib_path' => $pythonPath,
+                ]);
+            }
         }
 
         // Build command dengan Python environment untuk LibreOffice
-        // Set PYTHONHOME and PYTHONPATH untuk fix "Could not find platform libraries" error
-        $envVars = 'HOME=' . escapeshellarg(sys_get_temp_dir());
-        if ($pythonPath) {
-            $envVars .= ' PYTHONHOME=/usr PYTHONPATH=' . escapeshellarg($pythonPath);
         }
 
         $command = sprintf(
