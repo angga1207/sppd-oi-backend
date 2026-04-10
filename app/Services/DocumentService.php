@@ -376,9 +376,14 @@ class DocumentService
             return null;
         }
 
-
-        // Linux LibreOffice shell command to convert doc to pdf
-        // $command = "libreoffice --headless --convert-to pdf {$path} --outdir {$savePath} 2>&1";
+        Log::info("Starting PDF conversion", [
+            'docx_path' => $docxPath,
+            'output_dir' => $outputDir,
+            'docx_exists' => file_exists($docxPath),
+            'docx_readable' => is_readable($docxPath),
+            'docx_size' => filesize($docxPath),
+            'output_dir_writable' => is_writable($outputDir),
+        ]);
 
         // Find soffice binary
         $soffice = null;
@@ -406,6 +411,7 @@ class DocumentService
                 '/usr/bin/soffice',
                 '/usr/local/bin/soffice',
                 '/usr/local/bin/libreoffice',
+                '/opt/libreoffice/program/soffice',
                 '/Applications/LibreOffice.app/Contents/MacOS/soffice',
             ];
 
@@ -426,26 +432,47 @@ class DocumentService
 
         Log::info("LibreOffice found at: {$soffice}");
 
+        // Check LibreOffice version
+        $version = shell_exec(escapeshellarg($soffice) . " --version 2>&1");
+        Log::info("LibreOffice version: {$version}");
+
         // Use a unique user installation directory to avoid lock conflicts
         $userInstall = storage_path('app/libreoffice_profile_' . getmypid());
         if (!is_dir($userInstall)) {
             mkdir($userInstall, 0755, true);
         }
 
+        Log::info("User installation directory: {$userInstall}");
+
+        // Build command dengan format yang lebih robust
         $command = sprintf(
-            '%s --headless --norestore -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
+            '%s --headless --norestore --nolockcheck --nodefault --invisible -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
             escapeshellarg($soffice),
-            $userInstall,
+            escapeshellarg($userInstall),
             escapeshellarg($outputDir),
             escapeshellarg($docxPath)
         );
 
+        Log::info("Executing command: {$command}");
+
         $output = shell_exec($command);
-        Log::info("LibreOffice conversion output: {$output}");
+        Log::info("LibreOffice conversion output", [
+            'output' => $output,
+            'command' => $command,
+        ]);
 
         // Check if PDF was created
         $pdfPath = preg_replace('/\.docx$/i', '.pdf', $docxPath);
-        if (file_exists($pdfPath)) {
+
+        Log::info("Checking PDF creation", [
+            'expected_pdf_path' => $pdfPath,
+            'pdf_exists' => file_exists($pdfPath),
+            'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
+        ]);
+
+        if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
+            Log::info("PDF conversion successful: {$pdfPath}");
+
             // Optionally remove the .docx file after successful conversion
             // unlink($docxPath);
 
@@ -458,7 +485,12 @@ class DocumentService
         // Clean up temp profile
         $this->removeDirectory($userInstall);
 
-        Log::warning("PDF conversion may have failed. Output: {$output}");
+        Log::error("PDF conversion failed", [
+            'output' => $output,
+            'expected_pdf' => $pdfPath,
+            'docx_path' => $docxPath,
+        ]);
+
         return null;
     }
 
