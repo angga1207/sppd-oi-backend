@@ -429,7 +429,7 @@ class DocumentService
     }
 
     /**
-     * Convert .docx to PDF using unoconv or LibreOffice headless
+     * Convert .docx to PDF using multiple strategies
      */
     private function convertToPdf(string $docxPath, string $outputDir): ?string
     {
@@ -447,44 +447,123 @@ class DocumentService
             'output_dir_writable' => is_writable($outputDir),
         ]);
 
-        // Try unoconv first (more reliable and easier)
-        $unoconv = trim(shell_exec("command -v unoconv 2>/dev/null") ?? '');
-        if ($unoconv) {
-            Log::info("Using unoconv for conversion: {$unoconv}");
+        $pdfPath = preg_replace('/\.docx$/i', '.pdf', $docxPath);
 
-            $command = sprintf(
-                '%s -f pdf -o %s %s 2>&1',
-                escapeshellarg($unoconv),
-                escapeshellarg($outputDir),
-                escapeshellarg($docxPath)
+        // Strategy 1: Try Gotenberg (Docker container - most reliable)
+        $result = $this->convertWithGotenberg($docxPath, $pdfPath);
+        if ($result) {
+            return $result;
+        }
+
+        // Strategy 2: Try LibreOffice with multiple approaches
+        $result = $this->convertWithLibreOffice($docxPath, $outputDir, $pdfPath);
+        if ($result) {
+            return $result;
+        }
+
+        Log::error("All PDF conversion strategies failed", [
+            'docx_path' => $docxPath,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * Convert using Gotenberg Docker container (most reliable)
+     */
+    private function convertWithGotenberg(string $docxPath, string $pdfPath): ?string
+    {
+        // Default Gotenberg URL (runs on port 3000)
+        $gotenbergUrl = env('GOTENBERG_URL', 'http://localhost:3000');
+
+        // Check if Gotenberg is available
+        $healthCheck = @file_get_contents("{$gotenbergUrl}/health", false, stream_context_create([
+            'http' => ['timeout' => 2],
+        ]));
+
+        if ($healthCheck === false) {
+            Log::info("Gotenberg not available at {$gotenbergUrl}, skipping.");
+            return null;
+        }
+
+        Log::info("Using Gotenberg for conversion at: {$gotenbergUrl}");
+
+        try {
+            $boundary = uniqid('boundary_');
+            $fileName = basename($docxPath);
+            $fileContent = file_get_contents($docxPath);
+
+            // Build multipart form data
+            $body = "--{$boundary}\r\n";
+            $body .= "Content-Disposition: form-data; name=\"files\"; filename=\"{$fileName}\"\r\n";
+            $body .= "Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document\r\n\r\n";
+            $body .= $fileContent . "\r\n";
+            $body .= "--{$boundary}--\r\n";
+
+            $context = stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Content-Type: multipart/form-data; boundary={$boundary}\r\n",
+                    'content' => $body,
+                    'timeout' => 60,
+                ],
+            ]);
+
+            $pdfContent = @file_get_contents(
+                "{$gotenbergUrl}/forms/libreoffice/convert",
+                false,
+                $context
             );
 
-            Log::info("Executing unoconv command: {$command}");
-            $output = shell_exec($command);
+            if ($pdfContent !== false && strlen($pdfContent) > 0) {
+                file_put_contents($pdfPath, $pdfContent);
 
-            $pdfPath = preg_replace('/\.docx$/i', '.pdf', $docxPath);
-
-            if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
-                Log::info("PDF conversion successful with unoconv: {$pdfPath}");
-                return $pdfPath;
+                if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
+                    Log::info("PDF conversion successful with Gotenberg: {$pdfPath}");
+                    return $pdfPath;
+                }
             }
 
-            Log::warning("unoconv conversion failed, trying LibreOffice. Output: {$output}");
+            Log::warning("Gotenberg conversion returned empty response");
+            return null;
+        } catch (\Exception $e) {
+            Log::warning("Gotenberg conversion failed: " . $e->getMessage());
+            return null;
         }
+    }
 
-        // Fallback to LibreOffice
-        // Find soffice binary
+    /**
+     * Convert using LibreOffice (multiple approaches)
+     */
+    private function convertWithLibreOffice(string $docxPath, string $outputDir, string $pdfPath): ?string
+    {
+        $fullPath = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/libreoffice26.2/program:/opt/libreoffice25.8/program';
+
+        // Find the actual soffice binary (prefer /opt/ installation)
+        $sofficePaths = [
+            '/opt/libreoffice26.2/program/soffice',
+            '/opt/libreoffice25.8/program/soffice',
+            '/opt/libreoffice/program/soffice',
+        ];
+
         $soffice = null;
 
-        // PHP-FPM typically has a very limited PATH, so we expand it manually
-        $fullPath = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
-
-        // Try `command -v` with expanded PATH (more reliable than `which` under PHP-FPM)
-        $which = trim(shell_exec("PATH={$fullPath}:\$PATH command -v soffice 2>/dev/null") ?? '');
-        if ($which) {
-            $soffice = $which;
+        // First check /opt/ installations (these have their own complete environment)
+        foreach ($sofficePaths as $path) {
+            $check = shell_exec("test -x " . escapeshellarg($path) . " && echo 'ok' 2>/dev/null");
+            if (trim($check ?? '') === 'ok') {
+                $soffice = $path;
+                break;
+            }
         }
 
+        // Fallback to system-installed soffice
+        if (!$soffice) {
+            $which = trim(shell_exec("PATH={$fullPath}:\$PATH command -v soffice 2>/dev/null") ?? '');
+            if ($which) {
+                $soffice = $which;
+            }
+        }
         if (!$soffice) {
             $which = trim(shell_exec("PATH={$fullPath}:\$PATH command -v libreoffice 2>/dev/null") ?? '');
             if ($which) {
@@ -492,137 +571,102 @@ class DocumentService
             }
         }
 
-        // Fallback: try common absolute paths directly via shell test -x (avoids open_basedir)
         if (!$soffice) {
-            $possiblePaths = [
-                '/opt/libreoffice26.2/program/soffice',  // LibreOffice 26.2.x manual install
-                '/opt/libreoffice25.8/program/soffice',  // LibreOffice 25.8.x manual install
-                '/opt/libreoffice/program/soffice',      // Generic opt install
-                '/usr/local/bin/soffice',
-                '/usr/local/bin/libreoffice',
-                '/usr/bin/libreoffice',
-                '/usr/bin/soffice',
-                '/Applications/LibreOffice.app/Contents/MacOS/soffice',
-            ];
-
-            foreach ($possiblePaths as $path) {
-                // Use shell `test -x` to check existence+executable — bypasses open_basedir
-                $check = shell_exec("test -x " . escapeshellarg($path) . " && echo 'ok' 2>/dev/null");
-                if (trim($check ?? '') === 'ok') {
-                    $soffice = $path;
-                    break;
-                }
-            }
-        }
-
-        if (!$soffice) {
-            Log::warning('LibreOffice not found. Keeping .docx format.');
+            Log::warning('LibreOffice not found.');
             return null;
         }
 
         Log::info("LibreOffice found at: {$soffice}");
 
-        // Check LibreOffice version
-        $version = shell_exec(escapeshellarg($soffice) . " --version 2>&1");
-        Log::info("LibreOffice version: {$version}");
-
         // Use a unique user installation directory to avoid lock conflicts
-        $userInstall = storage_path('app/libreoffice_profile_' . getmypid());
+        $userInstall = sys_get_temp_dir() . '/libreoffice_profile_' . getmypid() . '_' . time();
         if (!is_dir($userInstall)) {
             mkdir($userInstall, 0755, true);
         }
 
-        Log::info("User installation directory: {$userInstall}");
-
-        // Detect Python for LibreOffice (required for newer versions)
+        // Detect Python version for environment
         $pythonPath = '';
-        $pythonVersion = shell_exec("python3 --version 2>&1");
-        if ($pythonVersion) {
-            // Hardcode common Python lib paths (avoid is_dir() due to open_basedir restriction)
-            // These paths are standard in RHEL/Rocky Linux
-            $pythonLibDirs = [
-                '/usr/lib64/python3.9',
-                '/usr/lib64/python3.11',
-                '/usr/lib64/python3.10',
-                '/usr/lib/python3.9',
-                '/usr/lib/python3.11',
-            ];
-
-            // Just use the first one that matches Python version, skip directory check
-            $versionMatch = preg_match('/Python (\d+\.\d+)/', $pythonVersion, $matches);
-            if ($versionMatch) {
-                $pyVer = $matches[1];
-                $pythonPath = "/usr/lib64/python{$pyVer}";
-
-                Log::info("Python detected", [
-                    'version' => trim($pythonVersion),
-                    'lib_path' => $pythonPath,
-                ]);
-            } else {
-                // Fallback to 3.9 (most common in Rocky 9)
-                $pythonPath = '/usr/lib64/python3.9';
-                Log::info("Python detected (fallback)", [
-                    'version' => trim($pythonVersion),
-                    'lib_path' => $pythonPath,
-                ]);
-            }
+        $pythonVersion = trim(shell_exec("python3 --version 2>&1") ?? '');
+        if ($pythonVersion && preg_match('/Python (\d+\.\d+)/', $pythonVersion, $matches)) {
+            $pythonPath = "/usr/lib64/python{$matches[1]}";
         }
 
-        // Build command dengan Python environment untuk LibreOffice
-        // Set PYTHONHOME and PYTHONPATH untuk fix "Could not find platform libraries" error
+        // Build environment variables
         $envVars = 'HOME=' . escapeshellarg(sys_get_temp_dir());
         if ($pythonPath) {
             $envVars .= ' PYTHONHOME=/usr PYTHONPATH=' . escapeshellarg($pythonPath);
         }
 
-        $command = sprintf(
-            '%s %s --headless --norestore --nolockcheck --nodefault --invisible -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
-            $envVars,
-            escapeshellarg($soffice),
-            $userInstall, // Jangan double-escape
-            escapeshellarg($outputDir),
-            escapeshellarg($docxPath)
-        );
+        // Approach 1: Simple command (works best in most cases)
+        $commands = [
+            // Try 1: Simple --headless --convert-to (no extra flags)
+            sprintf(
+                '%s %s --headless --norestore --convert-to pdf --outdir %s %s 2>&1',
+                $envVars,
+                escapeshellarg($soffice),
+                escapeshellarg($outputDir),
+                escapeshellarg($docxPath)
+            ),
+            // Try 2: With UserInstallation
+            sprintf(
+                '%s %s --headless --norestore -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
+                $envVars,
+                escapeshellarg($soffice),
+                $userInstall,
+                escapeshellarg($outputDir),
+                escapeshellarg($docxPath)
+            ),
+            // Try 3: Copy file to /tmp first (bypass any path restrictions)
+            null, // special handling below
+        ];
 
-        Log::info("Executing command: {$command}");
+        foreach ($commands as $i => $command) {
+            // Try 3: Copy to /tmp and convert from there
+            if ($command === null) {
+                $tmpFile = sys_get_temp_dir() . '/' . basename($docxPath);
+                copy($docxPath, $tmpFile);
+                chmod($tmpFile, 0644);
+                $tmpPdfPath = preg_replace('/\.docx$/i', '.pdf', $tmpFile);
 
-        $output = shell_exec($command);
-        Log::info("LibreOffice conversion output", [
-            'output' => $output,
-            'command' => $command,
-        ]);
+                $command = sprintf(
+                    '%s %s --headless --norestore --convert-to pdf --outdir %s %s 2>&1',
+                    $envVars,
+                    escapeshellarg($soffice),
+                    escapeshellarg(sys_get_temp_dir()),
+                    escapeshellarg($tmpFile)
+                );
 
-        // Check if PDF was created
-        $pdfPath = preg_replace('/\.docx$/i', '.pdf', $docxPath);
+                Log::info("LibreOffice attempt " . ($i + 1) . " (from /tmp): {$command}");
+                $output = shell_exec($command);
+                Log::info("LibreOffice attempt " . ($i + 1) . " output: {$output}");
 
-        Log::info("Checking PDF creation", [
-            'expected_pdf_path' => $pdfPath,
-            'pdf_exists' => file_exists($pdfPath),
-            'pdf_size' => file_exists($pdfPath) ? filesize($pdfPath) : 0,
-        ]);
+                // Check if PDF was created in /tmp
+                if (file_exists($tmpPdfPath) && filesize($tmpPdfPath) > 0) {
+                    // Move to final destination
+                    rename($tmpPdfPath, $pdfPath);
+                    @unlink($tmpFile);
+                    $this->removeDirectory($userInstall);
+                    Log::info("PDF conversion successful (from /tmp): {$pdfPath}");
+                    return $pdfPath;
+                }
+                @unlink($tmpFile);
+                @unlink($tmpPdfPath);
+                continue;
+            }
 
-        if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
-            Log::info("PDF conversion successful: {$pdfPath}");
+            Log::info("LibreOffice attempt " . ($i + 1) . ": {$command}");
+            $output = shell_exec($command);
+            Log::info("LibreOffice attempt " . ($i + 1) . " output: {$output}");
 
-            // Optionally remove the .docx file after successful conversion
-            // unlink($docxPath);
-
-            // Clean up temp profile
-            $this->removeDirectory($userInstall);
-
-            return $pdfPath;
+            if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
+                $this->removeDirectory($userInstall);
+                Log::info("PDF conversion successful: {$pdfPath}");
+                return $pdfPath;
+            }
         }
 
-        // Clean up temp profile
+        // Clean up
         $this->removeDirectory($userInstall);
-
-        Log::error("PDF conversion failed", [
-            'output' => $output,
-            'expected_pdf' => $pdfPath,
-            'docx_path' => $docxPath,
-        ]);
-
-        return null;
     }
 
     /**
