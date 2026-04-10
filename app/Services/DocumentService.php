@@ -405,6 +405,7 @@ class DocumentService
         $libreoffice = null;
         $paths = [
             '/usr/local/bin/libreoffice',
+            '/opt/libreoffice25.8/program/soffice',
             '/opt/libreoffice26.2/program/soffice',
         ];
         foreach ($paths as $path) {
@@ -414,7 +415,7 @@ class DocumentService
             }
         }
         if (!$libreoffice) {
-            $libreoffice = trim(shell_exec('which libreoffice 2>/dev/null') ?? '');
+            $libreoffice = trim(shell_exec('which soffice 2>/dev/null') ?? '');
         }
 
         if (!$libreoffice) {
