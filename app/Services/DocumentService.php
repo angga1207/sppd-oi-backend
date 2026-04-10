@@ -422,11 +422,10 @@ class DocumentService
             return null;
         }
 
-        // Use env -i to start with COMPLETELY clean environment
-        // This prevents PHP-FPM environment variables (PYTHONHOME etc) from breaking LibreOffice
+        // Unset hanya variable yang bermasalah (PYTHONHOME/PYTHONPATH),
+        // JANGAN pakai env -i karena menghapus semua env termasuk USER info
         $command = sprintf(
-            'env -i HOME=%s PATH=/usr/local/bin:/usr/bin:/bin %s --headless --norestore --convert-to pdf --outdir %s %s 2>&1',
-            escapeshellarg(sys_get_temp_dir()),
+            'unset PYTHONHOME PYTHONPATH; HOME=/home/www %s --headless --norestore --convert-to pdf --outdir %s %s 2>&1',
             escapeshellarg($libreoffice),
             escapeshellarg($outputDir),
             escapeshellarg($docxPath)
