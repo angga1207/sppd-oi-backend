@@ -569,6 +569,10 @@ class DocumentService
         }
 
         // Build command dengan Python environment untuk LibreOffice
+        // Set PYTHONHOME and PYTHONPATH untuk fix "Could not find platform libraries" error
+        $envVars = 'HOME=' . escapeshellarg(sys_get_temp_dir());
+        if ($pythonPath) {
+            $envVars .= ' PYTHONHOME=/usr PYTHONPATH=' . escapeshellarg($pythonPath);
         }
 
         $command = sprintf(
