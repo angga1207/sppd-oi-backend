@@ -9,6 +9,15 @@ trait ConvertHtmlListToText
      */
     public function ConvertHtmlListToText($html)
     {
+        $result = $this->convertHtmlListToTextRaw($html);
+
+        // Re-escape XML special characters (& < > " ') for PhpWord TemplateProcessor
+        // Because TemplateProcessor::setValue() does raw str_replace into XML
+        return htmlspecialchars($result, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+    }
+
+    private function convertHtmlListToTextRaw($html)
+    {
         if (empty($html)) {
             return '';
         }
@@ -95,6 +104,8 @@ trait ConvertHtmlListToText
         $text = strip_tags($html);
         $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
         $text = preg_replace('/\s+/', ' ', $text); // Normalize whitespace
-        return trim($text);
+        $text = trim($text);
+
+        return $text;
     }
 }
