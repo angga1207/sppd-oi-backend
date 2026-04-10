@@ -407,11 +407,13 @@ class DocumentService
         // Fallback: try common absolute paths directly via shell test -x (avoids open_basedir)
         if (!$soffice) {
             $possiblePaths = [
-                '/usr/bin/libreoffice',
-                '/usr/bin/soffice',
+                '/opt/libreoffice26.2/program/soffice',  // LibreOffice 26.2.x manual install
+                '/opt/libreoffice25.8/program/soffice',  // LibreOffice 25.8.x manual install
+                '/opt/libreoffice/program/soffice',      // Generic opt install
                 '/usr/local/bin/soffice',
                 '/usr/local/bin/libreoffice',
-                '/opt/libreoffice/program/soffice',
+                '/usr/bin/libreoffice',
+                '/usr/bin/soffice',
                 '/Applications/LibreOffice.app/Contents/MacOS/soffice',
             ];
 
