@@ -401,22 +401,33 @@ class DocumentService
 
         $pdfPath = preg_replace('/\.docx$/i', '.pdf', $docxPath);
 
-        // Find soffice binary
-        $soffice = trim(shell_exec('which soffice 2>/dev/null') ?? '');
-        if (!$soffice) {
-            $soffice = trim(shell_exec('which libreoffice 2>/dev/null') ?? '');
+        // Find libreoffice binary
+        $libreoffice = null;
+        $paths = [
+            '/usr/local/bin/libreoffice',
+            '/opt/libreoffice26.2/program/soffice',
+        ];
+        foreach ($paths as $path) {
+            if (@is_executable($path) || trim(shell_exec("test -x " . escapeshellarg($path) . " && echo ok 2>/dev/null") ?? '') === 'ok') {
+                $libreoffice = $path;
+                break;
+            }
+        }
+        if (!$libreoffice) {
+            $libreoffice = trim(shell_exec('which libreoffice 2>/dev/null') ?? '');
         }
 
-        if (!$soffice) {
-            Log::error('LibreOffice (soffice) not found on this system.');
+        if (!$libreoffice) {
+            Log::error('LibreOffice not found on this system.');
             return null;
         }
 
-        // Simple conversion command
+        // Use env -i to start with COMPLETELY clean environment
+        // This prevents PHP-FPM environment variables (PYTHONHOME etc) from breaking LibreOffice
         $command = sprintf(
-            'HOME=%s %s --headless --norestore --convert-to pdf --outdir %s %s 2>&1',
+            'env -i HOME=%s PATH=/usr/local/bin:/usr/bin:/bin %s --headless --norestore --convert-to pdf --outdir %s %s 2>&1',
             escapeshellarg(sys_get_temp_dir()),
-            escapeshellarg($soffice),
+            escapeshellarg($libreoffice),
             escapeshellarg($outputDir),
             escapeshellarg($docxPath)
         );
