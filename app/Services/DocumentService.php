@@ -444,11 +444,13 @@ class DocumentService
 
         Log::info("User installation directory: {$userInstall}");
 
-        // Build command dengan format yang lebih robust
+        // Build command dengan HOME environment dan format yang lebih robust
+        // Set HOME to /tmp untuk avoid permission issues dengan LibreOffice
         $command = sprintf(
-            '%s --headless --norestore --nolockcheck --nodefault --invisible -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
+            'HOME=%s %s --headless --norestore --nolockcheck --nodefault --invisible -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
+            escapeshellarg(sys_get_temp_dir()),
             escapeshellarg($soffice),
-            escapeshellarg($userInstall),
+            $userInstall, // Jangan double-escape
             escapeshellarg($outputDir),
             escapeshellarg($docxPath)
         );
