@@ -174,6 +174,37 @@ class DocumentService
             $docxPath = "{$outputDir}/{$filename}.docx";
             $tp->saveAs($docxPath);
 
+            // Verify DOCX was saved properly
+            if (!file_exists($docxPath)) {
+                Log::error("DOCX file was not created", ['path' => $docxPath]);
+                return null;
+            }
+
+            $fileSize = filesize($docxPath);
+            if ($fileSize === 0) {
+                Log::error("DOCX file is empty", ['path' => $docxPath]);
+                unlink($docxPath);
+                return null;
+            }
+
+            Log::info("DOCX created successfully", [
+                'path' => $docxPath,
+                'size' => $fileSize,
+            ]);
+
+            // Verify DOCX is valid ZIP file (DOCX is a ZIP archive)
+            $zip = new \ZipArchive();
+            $zipStatus = $zip->open($docxPath, \ZipArchive::CHECKCONS);
+            if ($zipStatus !== true) {
+                Log::error("DOCX file is not a valid ZIP archive", [
+                    'path' => $docxPath,
+                    'zip_status' => $zipStatus,
+                ]);
+            } else {
+                $zip->close();
+                Log::info("DOCX file is valid ZIP archive");
+            }
+
             // Convert to PDF
             $pdfPath = $this->convertToPdf($docxPath, $outputDir);
 
@@ -308,6 +339,37 @@ class DocumentService
             $docxPath = "{$outputDir}/{$filename}.docx";
             $tp->saveAs($docxPath);
 
+            // Verify DOCX was saved properly
+            if (!file_exists($docxPath)) {
+                Log::error("SPD DOCX file was not created", ['path' => $docxPath]);
+                return null;
+            }
+
+            $fileSize = filesize($docxPath);
+            if ($fileSize === 0) {
+                Log::error("SPD DOCX file is empty", ['path' => $docxPath]);
+                unlink($docxPath);
+                return null;
+            }
+
+            Log::info("SPD DOCX created successfully", [
+                'path' => $docxPath,
+                'size' => $fileSize,
+            ]);
+
+            // Verify DOCX is valid ZIP file
+            $zip = new \ZipArchive();
+            $zipStatus = $zip->open($docxPath, \ZipArchive::CHECKCONS);
+            if ($zipStatus !== true) {
+                Log::error("SPD DOCX file is not a valid ZIP archive", [
+                    'path' => $docxPath,
+                    'zip_status' => $zipStatus,
+                ]);
+            } else {
+                $zip->close();
+                Log::info("SPD DOCX file is valid ZIP archive");
+            }
+
             // Convert to PDF
             $pdfPath = $this->convertToPdf($docxPath, $outputDir);
 
@@ -367,7 +429,7 @@ class DocumentService
     }
 
     /**
-     * Convert .docx to PDF using LibreOffice headless
+     * Convert .docx to PDF using unoconv or LibreOffice headless
      */
     private function convertToPdf(string $docxPath, string $outputDir): ?string
     {
@@ -385,6 +447,32 @@ class DocumentService
             'output_dir_writable' => is_writable($outputDir),
         ]);
 
+        // Try unoconv first (more reliable and easier)
+        $unoconv = trim(shell_exec("command -v unoconv 2>/dev/null") ?? '');
+        if ($unoconv) {
+            Log::info("Using unoconv for conversion: {$unoconv}");
+
+            $command = sprintf(
+                '%s -f pdf -o %s %s 2>&1',
+                escapeshellarg($unoconv),
+                escapeshellarg($outputDir),
+                escapeshellarg($docxPath)
+            );
+
+            Log::info("Executing unoconv command: {$command}");
+            $output = shell_exec($command);
+
+            $pdfPath = preg_replace('/\.docx$/i', '.pdf', $docxPath);
+
+            if (file_exists($pdfPath) && filesize($pdfPath) > 0) {
+                Log::info("PDF conversion successful with unoconv: {$pdfPath}");
+                return $pdfPath;
+            }
+
+            Log::warning("unoconv conversion failed, trying LibreOffice. Output: {$output}");
+        }
+
+        // Fallback to LibreOffice
         // Find soffice binary
         $soffice = null;
 
@@ -446,11 +534,41 @@ class DocumentService
 
         Log::info("User installation directory: {$userInstall}");
 
-        // Build command dengan HOME environment dan format yang lebih robust
-        // Set HOME to /tmp untuk avoid permission issues dengan LibreOffice
+        // Detect Python for LibreOffice (required for newer versions)
+        $pythonPath = '';
+        $pythonVersion = shell_exec("python3 --version 2>&1");
+        if ($pythonVersion) {
+            // Try to find Python lib directory
+            $pythonLibDirs = [
+                '/usr/lib64/python3.9',
+                '/usr/lib64/python3.11',
+                '/usr/lib/python3.9',
+                '/usr/lib/python3.11',
+            ];
+
+            foreach ($pythonLibDirs as $dir) {
+                if (is_dir($dir)) {
+                    $pythonPath = $dir;
+                    break;
+                }
+            }
+
+            Log::info("Python detected", [
+                'version' => trim($pythonVersion),
+                'lib_path' => $pythonPath ?: 'not found',
+            ]);
+        }
+
+        // Build command dengan Python environment untuk LibreOffice
+        // Set PYTHONHOME and PYTHONPATH untuk fix "Could not find platform libraries" error
+        $envVars = 'HOME=' . escapeshellarg(sys_get_temp_dir());
+        if ($pythonPath) {
+            $envVars .= ' PYTHONHOME=/usr PYTHONPATH=' . escapeshellarg($pythonPath);
+        }
+
         $command = sprintf(
-            'HOME=%s %s --headless --norestore --nolockcheck --nodefault --invisible -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
-            escapeshellarg(sys_get_temp_dir()),
+            '%s %s --headless --norestore --nolockcheck --nodefault --invisible -env:UserInstallation=file://%s --convert-to pdf --outdir %s %s 2>&1',
+            $envVars,
             escapeshellarg($soffice),
             $userInstall, // Jangan double-escape
             escapeshellarg($outputDir),
