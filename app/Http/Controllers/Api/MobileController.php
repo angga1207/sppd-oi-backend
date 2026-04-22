@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\LogSurat;
+use App\Models\Notification;
 use App\Models\SuratPerjalananDinas;
 use App\Models\SuratTugas;
 use App\Models\User;
@@ -222,6 +223,7 @@ class MobileController extends Controller
                     'can_sign' => $isAdmin || $isSigner,
                     'can_reject' => $isAdmin || $isSigner,
                     'is_signer' => $isSigner,
+                    'show_anggaran' => false, // Anggaran details are not shown in mobile app to reduce clutter, can be added if needed
                 ],
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -597,6 +599,53 @@ class MobileController extends Controller
             );
         } catch (\Exception $e) {
             Log::warning("Mobile: Failed to log surat action '{$aksi}' for ST #{$suratTugasId}: " . $e->getMessage());
+        }
+    }
+
+    //
+    // GET Basic Info from NIP (GET /api/mobile/user-info?nip=xxx)
+    public function userInfo(Request $request): JsonResponse
+    {
+        try {
+            $user = $this->resolveUser($request);
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'NIP wajib diisi. / User Tidak Ditemukan, Silahkan login terlebih dahulu di aplikasi e-SPD Web'], 400);
+            }
+
+            $isAdmin = $this->isSuperAdmin($user);
+            $isPenandatangan = $user->employee && SuratTugas::where('penandatangan_nip', $user->employee->nip)->where('status', 'dikirim')->exists();
+
+            // Count ST yang menunggu tanda tangan untuk badge notification
+            $waitingForSignatureCount = 0;
+            if ($isAdmin) {
+                $waitingForSignatureCount = SuratTugas::where('status', 'dikirim')->count();
+            } elseif ($isPenandatangan) {
+                $waitingForSignatureCount = SuratTugas::where('penandatangan_nip', $user->employee->nip)->where('status', 'dikirim')->count();
+            }
+
+            // Count ST yang draft untuk badge notification
+            $draftCount = SuratTugas::where('created_by', $user->id)->where('status', 'draft')->count();
+            $waitingForSignatureCount += $draftCount;
+
+            // Unread notifications count can be added here if needed, e.g.:
+            $unreadNotificationsCount = Notification::where('user_id', $user->id)->where('read_at', null)->count();
+
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'name' => $user->name,
+                    'username' => $user->username,
+                    'nik' => $user->nik,
+                    'role' => $user->role->name ?? null,
+                    'st_count' => $waitingForSignatureCount,
+                    'unread_notifications_count' => $unreadNotificationsCount,
+                    'instance' => $user->instance ? ['id' => $user->instance->id, 'name' => $user->instance->name] : null,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Mobile userInfo error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Gagal memuat data user.'], 500);
         }
     }
 }

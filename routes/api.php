@@ -147,7 +147,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [PpkController::class, 'destroy']);
         Route::post('/{id}/set-active', [PpkController::class, 'setActive']);
     });
-
 });
 
 // Mobile API routes for Semesta Android app (no Bearer token — uses NIP param)
@@ -157,6 +156,9 @@ Route::prefix('mobile')
         'throttle:mobile'
     ])
     ->group(function () {
+        // GET basic employee info by NIP (for authentication and personalization in the app)
+        Route::get('/user-info', [MobileController::class, 'userInfo']);
+
         // GET endpoints — nip via query parameter (?nip=xxx)
         Route::get('/surat-tugas', [MobileController::class, 'listSuratTugas']);
         Route::get('/surat-tugas/{id}', [MobileController::class, 'detailSuratTugas']);
