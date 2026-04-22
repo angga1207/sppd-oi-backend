@@ -624,8 +624,8 @@ class MobileController extends Controller
             }
 
             // Count ST yang draft untuk badge notification
-            $draftCount = SuratTugas::where('created_by', $user->id)->where('status', 'draft')->count();
-            $waitingForSignatureCount += $draftCount;
+            // $draftCount = SuratTugas::where('created_by', $user->id)->where('status', 'draft')->count();
+            // $waitingForSignatureCount += $draftCount;
 
             // Unread notifications count can be added here if needed, e.g.:
             $unreadNotificationsCount = Notification::where('user_id', $user->id)->where('read_at', null)->count();
