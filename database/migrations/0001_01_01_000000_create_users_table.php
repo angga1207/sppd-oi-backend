@@ -63,6 +63,7 @@ return new class extends Migration
             $table->string('golongan')->nullable();
             $table->string('pangkat')->nullable();
             $table->json('ref_jabatan_baru')->nullable();
+            $table->boolean('is_kepegawaian')->default(false);
 
             $table->timestamps();
             $table->softDeletes();

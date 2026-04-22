@@ -412,15 +412,18 @@ class DocumentService
         // Find libreoffice binary
         $libreoffice = null;
         $paths = [
-            '/usr/local/bin/libreoffice',
-            '/opt/libreoffice25.8/program/soffice',
-            '/opt/libreoffice26.2/program/soffice',
+            '/usr/bin/libreoffice',           // dnf install (Rocky Linux)
+            '/usr/local/bin/libreoffice',     // symlink / custom install
+            '/opt/libreoffice25.8/program/soffice', // manual install 25.8
         ];
         foreach ($paths as $path) {
             if (@is_executable($path) || trim(shell_exec("test -x " . escapeshellarg($path) . " && echo ok 2>/dev/null") ?? '') === 'ok') {
                 $libreoffice = $path;
                 break;
             }
+        }
+        if (!$libreoffice) {
+            $libreoffice = trim(shell_exec('which libreoffice 2>/dev/null') ?? '');
         }
         if (!$libreoffice) {
             $libreoffice = trim(shell_exec('which soffice 2>/dev/null') ?? '');

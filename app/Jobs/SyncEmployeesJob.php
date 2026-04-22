@@ -33,7 +33,7 @@ class SyncEmployeesJob implements ShouldQueue
 
         $instances = Instance::whereNotNull('id_eoffice')
             ->where('status', 'active')
-            ->when($this->instanceId, fn ($q) => $q->where('id', $this->instanceId))
+            ->when($this->instanceId, fn($q) => $q->where('id', $this->instanceId))
             ->get();
 
         if ($instances->isEmpty()) {
@@ -156,6 +156,7 @@ class SyncEmployeesJob implements ShouldQueue
                     'golongan' => $p['golongan'] ?? null,
                     'pangkat' => $p['pangkat'] ?? null,
                     'ref_jabatan_baru' => $p['ref_jabatan_baru'] ?? null,
+                    'is_kepegawaian' => $p['is_kepegawaian'] == true ? true : false,
                 ];
 
                 $existing = Employee::withTrashed()
@@ -176,7 +177,10 @@ class SyncEmployeesJob implements ShouldQueue
                 }
             }
 
-            $this->finishLog($syncLog, 'success', $startTime,
+            $this->finishLog(
+                $syncLog,
+                'success',
+                $startTime,
                 totalFetched: $totalFetched,
                 created: $created,
                 updated: $updated,

@@ -18,9 +18,16 @@ class PpkController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
+            $user = $request->user();
+            $user->loadMissing(['role', 'employee']);
+            $isSuperAdmin = ($user->role->slug ?? '') === 'super-admin';
+
             $query = PejabatPembuatKomitmen::with('instance');
 
-            if ($instanceId = $request->input('instance_id')) {
+            if (!$isSuperAdmin) {
+                // Non-super-admin can only see their own OPD
+                $query->where('instance_id', $user->instance_id);
+            } elseif ($instanceId = $request->input('instance_id')) {
                 $query->where('instance_id', $instanceId);
             }
 
@@ -81,13 +88,21 @@ class PpkController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        $user->loadMissing('role');
+        $user->loadMissing(['role', 'employee']);
 
-        if (($user->role->slug ?? '') !== 'super-admin') {
+        $isSuperAdmin = ($user->role->slug ?? '') === 'super-admin';
+        $isKepegawaian = $user->employee && $user->employee->is_kepegawaian;
+
+        if (!$isSuperAdmin && !$isKepegawaian) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya Super Admin yang dapat mengelola PPK.',
+                'message' => 'Anda tidak memiliki akses untuk mengelola PPK.',
             ], 403);
+        }
+
+        // Non-super-admin can only create PPK for their own OPD
+        if (!$isSuperAdmin) {
+            $request->merge(['instance_id' => $user->instance_id]);
         }
 
         $request->validate([
@@ -138,16 +153,32 @@ class PpkController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        $user->loadMissing('role');
+        $user->loadMissing(['role', 'employee']);
 
-        if (($user->role->slug ?? '') !== 'super-admin') {
+        $isSuperAdmin = ($user->role->slug ?? '') === 'super-admin';
+        $isKepegawaian = $user->employee && $user->employee->is_kepegawaian;
+
+        if (!$isSuperAdmin && !$isKepegawaian) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya Super Admin yang dapat mengelola PPK.',
+                'message' => 'Anda tidak memiliki akses untuk mengelola PPK.',
             ], 403);
         }
 
         $ppk = PejabatPembuatKomitmen::findOrFail($id);
+
+        // Non-super-admin can only update PPK for their own OPD
+        if (!$isSuperAdmin && $ppk->instance_id !== $user->instance_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda hanya dapat mengelola PPK untuk OPD Anda sendiri.',
+            ], 403);
+        }
+
+        // Non-super-admin cannot change instance_id
+        if (!$isSuperAdmin) {
+            $request->merge(['instance_id' => $user->instance_id]);
+        }
 
         $request->validate([
             'instance_id' => 'required|exists:instances,id',
@@ -200,17 +231,29 @@ class PpkController extends Controller
     public function destroy(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        $user->loadMissing('role');
+        $user->loadMissing(['role', 'employee']);
 
-        if (($user->role->slug ?? '') !== 'super-admin') {
+        $isSuperAdmin = ($user->role->slug ?? '') === 'super-admin';
+        $isKepegawaian = $user->employee && $user->employee->is_kepegawaian;
+
+        if (!$isSuperAdmin && !$isKepegawaian) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya Super Admin yang dapat mengelola PPK.',
+                'message' => 'Anda tidak memiliki akses untuk mengelola PPK.',
             ], 403);
         }
 
         try {
             $ppk = PejabatPembuatKomitmen::findOrFail($id);
+
+            // Non-super-admin can only delete PPK for their own OPD
+            if (!$isSuperAdmin && $ppk->instance_id !== $user->instance_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda hanya dapat mengelola PPK untuk OPD Anda sendiri.',
+                ], 403);
+            }
+
             $ppk->delete();
 
             return response()->json([
@@ -232,17 +275,28 @@ class PpkController extends Controller
     public function setActive(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        $user->loadMissing('role');
+        $user->loadMissing(['role', 'employee']);
 
-        if (($user->role->slug ?? '') !== 'super-admin') {
+        $isSuperAdmin = ($user->role->slug ?? '') === 'super-admin';
+        $isKepegawaian = $user->employee && $user->employee->is_kepegawaian;
+
+        if (!$isSuperAdmin && !$isKepegawaian) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya Super Admin yang dapat mengelola PPK.',
+                'message' => 'Anda tidak memiliki akses untuk mengelola PPK.',
             ], 403);
         }
 
         try {
             $ppk = PejabatPembuatKomitmen::findOrFail($id);
+
+            // Non-super-admin can only set active PPK for their own OPD
+            if (!$isSuperAdmin && $ppk->instance_id !== $user->instance_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda hanya dapat mengelola PPK untuk OPD Anda sendiri.',
+                ], 403);
+            }
 
             // Deactivate all PPK for the same instance
             PejabatPembuatKomitmen::where('instance_id', $ppk->instance_id)

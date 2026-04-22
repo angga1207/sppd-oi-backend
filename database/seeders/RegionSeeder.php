@@ -77,7 +77,7 @@ class RegionSeeder extends Seeder
         $this->command->newLine();
 
         // 3. Fetch Kecamatan khusus Kabupaten Ogan Ilir saja
-        $oganIlir = Kabupaten::where('nama', 'LIKE', '%OGAN ILIR%')->first();
+        $oganIlir = Kabupaten::where('nama', 'ILIKE', '%OGAN ILIR%')->first();
 
         if ($oganIlir) {
             $this->command->info("🏘️  Mengambil data Kecamatan Kabupaten Ogan Ilir ({$oganIlir->id})...");

@@ -29,6 +29,7 @@ class Employee extends Model
         'golongan',
         'pangkat',
         'ref_jabatan_baru',
+        'is_kepegawaian',
     ];
 
     protected $searchable = [
@@ -41,6 +42,7 @@ class Employee extends Model
     {
         return [
             'ref_jabatan_baru' => 'json',
+            'is_kepegawaian' => 'boolean',
         ];
     }
 
