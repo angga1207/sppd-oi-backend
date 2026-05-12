@@ -14,51 +14,37 @@ class InstanceSeeder extends Seeder
      */
     public function run(): void
     {
-        $uri = 'https://sicaramapis.oganilirkab.go.id/api/local/caram/realisasi/listInstance';
-        $response = Http::get($uri);
-        if ($response->successful()) {
-            $instances = $response->json()['data'] ?? [];
-            foreach ($instances as $instance) {
-                if (Instance::where('code', $instance['code'])->exists()) {
-                    continue;
-                }
-                Instance::create([
-                    'id_eoffice' => $instance['id_eoffice'],
-                    'name' => $instance['name'],
-                    'alias' => $instance['alias'],
-                    'code' => $instance['code'],
-                    'logo' => $instance['logo'],
-                    'status' => 'active',
-                    'description' => $instance['description'] ?? null,
-                    'address' => $instance['address'] ?? null,
-                    'phone' => $instance['phone'] ?? null,
-                    'fax' => $instance['fax'] ?? null,
-                    'email' => $instance['email'] ?? null,
-                    'website' => $instance['website'] ?? null,
-                    'facebook' => $instance['facebook'] ?? null,
-                    'instagram' => $instance['instagram'] ?? null,
-                    'youtube' => $instance['youtube'] ?? null,
-                ]);
-            }
-        }
-
         $uri = 'https://semesta.oganilirkab.go.id/api/referensi-skpd';
         $response = Http::post($uri);
-        if ($response->successful()) {
-            $instances = $response->json()['data'] ?? [];
-            foreach ($instances as $instance) {
-                $data = Instance::where('id_eoffice', $instance['id'])->first();
-                if ($data) {
-                    $data->update([
-                        'description' => $instance['code'],
-                        'phone' => $instance['telepon_skpd'],
-                        'fax' => $instance['fax'],
-                        'kode_pos' => $instance['kode_pos'],
-                        'email' => $instance['email_skpd'],
-                        'website' => $instance['website'],
-                    ]);
-                }
-            }
+
+        if (!$response->successful()) {
+            $this->command->error('Gagal mengambil data dari Semesta API: ' . $response->status());
+            return;
         }
+
+        $instances = $response->json()['data'] ?? [];
+
+        foreach ($instances as $instance) {
+            Instance::updateOrCreate(
+                ['id_eoffice' => $instance['id']],
+                [
+                    'name'        => $instance['nama_skpd'],
+                    'alias'       => $instance['nama_skpd_alias'] ?? null,
+                    'code'        => $instance['code'] ?? null,
+                    'logo'        => $instance['logo_skpd'] ?? null,
+                    'status'      => 'active',
+                    'address'     => $instance['alamat_skpd'] ?? null,
+                    'phone'       => $instance['telepon_skpd'] ?? null,
+                    'fax'         => $instance['fax'] ?? null,
+                    'kode_pos'    => $instance['kode_pos'] ?? null,
+                    'email'       => $instance['email_skpd'] ?? null,
+                    'website'     => $instance['website'] ?? null,
+                    'facebook'    => $instance['facebook_skpd'] ?? null,
+                    'instagram'   => $instance['instagram_skpd'] ?? null,
+                ]
+            );
+        }
+
+        $this->command->info('Berhasil memuat ' . count($instances) . ' data instansi dari Semesta.');
     }
 }
